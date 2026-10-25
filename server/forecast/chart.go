@@ -116,6 +116,7 @@ type Chart struct {
 	FreezeY   *float64  `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
 	NowX      float64   `json:"now_x"`        // x of the current time, 0-1000
 	NowPct    float64   `json:"now_pct"`      // the same, as a percentage
+	NowY      *float64  `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
 	TempMax   int       `json:"temp_max"`     // temperature at the top of the chart
 	TempMin   int       `json:"temp_min"`     // temperature at the bottom
 	BarKind   string    `json:"bar_kind"`     // "snow" or "precip"
@@ -269,6 +270,17 @@ func (c *Chart) setScale(lo, hi int) {
 		fmt.Fprintf(&b, "%s%.1f,%.1f", cmd, s.x, yOf(s.t))
 	}
 	c.TempPath = b.String()
+
+	// Where the line is at the current time, interpolating between the hourly samples around it.
+	c.NowY = nil
+	for i := 1; i < len(c.samples); i++ {
+		a, z := c.samples[i-1], c.samples[i]
+		if a.x <= c.NowX && c.NowX <= z.x && z.x > a.x {
+			y := yOf(a.t + (z.t-a.t)*(c.NowX-a.x)/(z.x-a.x))
+			c.NowY = &y
+			break
+		}
+	}
 
 	c.FreezeY = nil
 	if c.freeze > float64(lo) && c.freeze < float64(hi) {

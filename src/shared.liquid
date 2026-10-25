@@ -10,9 +10,13 @@
   .wx__axis > span { position: absolute; right: 6px; transform: translateY(-50%); }
   .wx__plot { position: relative; flex: 1 1 auto; border-bottom: 2px solid currentColor; }
   .wx__bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
-  .wx__now-line { position: absolute; top: 0; bottom: 0; width: 4px; transform: translateX(-50%); }
+  .wx__past { position: absolute; top: 0; bottom: 0; left: 0; }
+  .wx__dot {
+    position: absolute; right: 0; z-index: 2; width: 14px; height: 14px; border-radius: 50%;
+    transform: translate(50%, -50%); box-shadow: 0 0 0 3px #fff;
+  }
   .wx__bars > div { flex: 1 1 0; }
-  .wx__plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .wx__plot svg { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; overflow: visible; }
   .wx__icon { display: block; flex: none; }
   .wx__hero svg { width: 44px; height: 44px; }
   .screen--lg .wx__hero svg { width: 160px; height: 160px; stroke-width: 1.1; }
@@ -110,7 +114,9 @@
         <div class="wx__bars">
           {% for bar in chart.bars %}<div class="bg--{{ chart.bar_shade }}" style="height: {{ bar }}%;"></div>{% endfor %}
         </div>
-        <div class="wx__now-line bg--gray-75" style="left: {{ chart.now_pct }}%;"></div>
+        <div class="wx__past bg--gray-75" style="width: {{ chart.now_pct }}%;">
+          {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
+        </div>
         <svg viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor">
           {% for day in loc.days limit: chart.days offset: 1 %}
             {% assign x = forloop.index | times: 1000 | divided_by: chart.days %}
