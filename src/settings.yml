@@ -1,0 +1,52 @@
+#
+# Changes to this file will be overwritten by `trmnlp pull`.
+#
+# Docs: https://help.trmnl.com/en/articles/10542599-importing-and-exporting-private-plugins#h_581fb988f0
+#
+---
+strategy: polling
+no_screen_padding: 'no'
+dark_mode: 'no'
+static_data: ''
+polling_verb: get
+framework_version: latest
+# The Go service (../server) calls api.weather.gov and returns a ~2 KB summary;
+# the raw NWS hourly feed is over TRMNL's 100 KB polling limit.
+polling_url: "{{ service_url }}?lat_lon={{ lat_lon }}&units={{ units }}&name={{ location_name | url_encode }}&token={{ access_token | url_encode }}"
+polling_headers: ''
+name: NWS Weather Glance
+description: NWS forecast at a glance
+refresh_interval: 30
+custom_fields:
+- keyname: about
+  field_type: author_bio
+  name: About
+  description: Temperature ranges and weather severity for the week ahead, from the US National Weather Service. Darker pills mean rougher weather. Source and setup at <a href="https://github.com/nicpottier/trmnl-nws-weather" class="underline">github.com/nicpottier/trmnl-nws-weather</a>
+- keyname: service_url
+  field_type: url
+  name: Service URL
+  description: Your deployed NWS Weather Glance service (an AWS Lambda Function URL).
+  placeholder: https://abc123.lambda-url.us-west-2.on.aws/
+- keyname: access_token
+  field_type: password
+  name: Access token
+  description: Must match the service's ACCESS_TOKEN, if you set one.
+  optional: true
+- keyname: lat_lon
+  field_type: lat_lon
+  name: Location
+  description: Search for a US city or postal code, or provide a comma-separated lat/long. NWS covers the US and its territories only.
+  default: 47.5962,-120.6615
+- keyname: location_name
+  field_type: string
+  name: Location label
+  description: Shown in the title bar. Leave blank to use the NWS place name.
+  default: Leavenworth, WA
+  optional: true
+- keyname: units
+  field_type: select
+  name: Temperature unit
+  options:
+  - Fahrenheit: us
+  - Celsius: si
+  default: us

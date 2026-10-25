@@ -1,0 +1,237 @@
+{
+    "@context": [
+        "https://geojson.org/geojson-ld/geojson-context.jsonld",
+        {
+            "@version": "1.1",
+            "wx": "https://api.weather.gov/ontology#",
+            "s": "https://schema.org/",
+            "geo": "http://www.opengis.net/ont/geosparql#",
+            "unit": "http://codes.wmo.int/common/unit/",
+            "@vocab": "https://api.weather.gov/ontology#",
+            "geometry": {
+                "@id": "s:GeoCoordinates",
+                "@type": "geo:wktLiteral"
+            },
+            "city": "s:addressLocality",
+            "state": "s:addressRegion",
+            "distance": {
+                "@id": "s:Distance",
+                "@type": "s:QuantitativeValue"
+            },
+            "bearing": {
+                "@type": "s:QuantitativeValue"
+            },
+            "value": {
+                "@id": "s:value"
+            },
+            "unitCode": {
+                "@id": "s:unitCode",
+                "@type": "@id"
+            },
+            "forecastOffice": {
+                "@type": "@id"
+            },
+            "forecastGridData": {
+                "@type": "@id"
+            },
+            "publicZone": {
+                "@type": "@id"
+            },
+            "county": {
+                "@type": "@id"
+            },
+            "observationStations": {
+                "@container": "@list",
+                "@type": "@id"
+            }
+        }
+    ],
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "id": "https://api.weather.gov/stations/LVN11",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -120.67132,
+                    47.59119
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/stations/LVN11",
+                "@type": "wx:ObservationStation",
+                "elevation": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 362.712
+                },
+                "stationIdentifier": "LVN11",
+                "name": "Leavenworth",
+                "timeZone": "America/Los_Angeles",
+                "provider": "MesoWest",
+                "subProvider": "NWAVAL",
+                "distance": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 395.53428135016
+                },
+                "bearing": {
+                    "unitCode": "wmoUnit:degree_(angle)",
+                    "value": 305
+                },
+                "forecast": "https://api.weather.gov/zones/forecast/WAZ047",
+                "county": "https://api.weather.gov/zones/county/WAC007",
+                "fireWeatherZone": "https://api.weather.gov/zones/fire/WAZ696"
+            }
+        },
+        {
+            "id": "https://api.weather.gov/stations/TDRYD",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -120.5866,
+                    47.5555
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/stations/TDRYD",
+                "@type": "wx:ObservationStation",
+                "elevation": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 319.7352
+                },
+                "stationIdentifier": "TDRYD",
+                "name": "SR97 INTERCHANGE DRYDEN",
+                "timeZone": "America/Los_Angeles",
+                "provider": "MesoWest",
+                "subProvider": "WA DOT",
+                "distance": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 7097.8108719006
+                },
+                "bearing": {
+                    "unitCode": "wmoUnit:degree_(angle)",
+                    "value": 121
+                },
+                "forecast": "https://api.weather.gov/zones/forecast/WAZ047",
+                "county": "https://api.weather.gov/zones/county/WAC007",
+                "fireWeatherZone": "https://api.weather.gov/zones/fire/WAZ705"
+            }
+        },
+        {
+            "id": "https://api.weather.gov/stations/TBLEW",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -120.5771,
+                    47.3348
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/stations/TBLEW",
+                "@type": "wx:ObservationStation",
+                "elevation": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 1245.108
+                },
+                "stationIdentifier": "TBLEW",
+                "name": "BLEWETT PASS",
+                "timeZone": "America/Los_Angeles",
+                "provider": "MesoWest",
+                "subProvider": "WA DOT",
+                "distance": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 29078.689142444
+                },
+                "bearing": {
+                    "unitCode": "wmoUnit:degree_(angle)",
+                    "value": 166
+                },
+                "forecast": "https://api.weather.gov/zones/forecast/WAZ047",
+                "county": "https://api.weather.gov/zones/county/WAC007",
+                "fireWeatherZone": "https://api.weather.gov/zones/fire/WAZ696"
+            }
+        },
+        {
+            "id": "https://api.weather.gov/stations/STS54",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -121.0853,
+                    47.73163
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/stations/STS54",
+                "@type": "wx:ObservationStation",
+                "elevation": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 1578.864
+                },
+                "stationIdentifier": "STS54",
+                "name": "Stevens Pass - Tye Mill",
+                "timeZone": "America/Los_Angeles",
+                "provider": "MesoWest",
+                "subProvider": "NWAVAL",
+                "distance": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 35105.78179864
+                },
+                "bearing": {
+                    "unitCode": "wmoUnit:degree_(angle)",
+                    "value": 296
+                },
+                "forecast": "https://api.weather.gov/zones/forecast/WAZ302",
+                "county": "https://api.weather.gov/zones/county/WAC033",
+                "fireWeatherZone": "https://api.weather.gov/zones/fire/WAZ658"
+            }
+        },
+        {
+            "id": "https://api.weather.gov/stations/KEAT",
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -120.20121,
+                    47.39749
+                ]
+            },
+            "properties": {
+                "@id": "https://api.weather.gov/stations/KEAT",
+                "@type": "wx:ObservationStation",
+                "elevation": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 373.9896
+                },
+                "stationIdentifier": "KEAT",
+                "name": "Wenatchee - Pangborn Memorial Airport",
+                "timeZone": "America/Los_Angeles",
+                "provider": "ASOS-HFM",
+                "subProvider": "",
+                "distance": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 40974.030916255
+                },
+                "bearing": {
+                    "unitCode": "wmoUnit:degree_(angle)",
+                    "value": 121
+                },
+                "forecast": "https://api.weather.gov/zones/forecast/WAZ041",
+                "county": "https://api.weather.gov/zones/county/WAC017",
+                "fireWeatherZone": "https://api.weather.gov/zones/fire/WAZ705"
+            }
+        }
+    ],
+    "observationStations": [
+        "https://api.weather.gov/stations/LVN11",
+        "https://api.weather.gov/stations/TDRYD",
+        "https://api.weather.gov/stations/TBLEW",
+        "https://api.weather.gov/stations/STS54",
+        "https://api.weather.gov/stations/KEAT"
+    ],
+    "pagination": {
+        "next": "https://api.weather.gov/stations?id%5B0%5D=ADFW1&id%5B1%5D=BFYI1&id%5B2%5D=BMFW1&id%5B3%5D=CDJW&id%5B4%5D=CJDW&id%5B5%5D=CLKI1&id%5B6%5D=CRKI1&id%5B7%5D=CWJR&id%5B8%5D=CWYY&id%5B9%5D=D9139&id%5B10%5D=DMFW1&id%5B11%5D=DOUW1&id%5B12%5D=FHFI1&id%5B13%5D=GERW&id%5B14%5D=HAYI1&id%5B15%5D=HBVLY&id%5B16%5D=IDT00&id%5B17%5D=ITD19&id%5B18%5D=ITD20&id%5B19%5D=ITD41&id%5B20%5D=ITD58&id%5B21%5D=ITD60&id%5B22%5D=ITD61&id%5B23%5D=ITD64&id%5B24%5D=ITD74&id%5B25%5D=ITD76&id%5B26%5D=ITD90&id%5B27%5D=ITDA5&id%5B28%5D=ITDA6&id%5B29%5D=ITDA7&id%5B30%5D=ITDA8&id%5B31%5D=ITDA9&id%5B32%5D=ITDB4&id%5B33%5D=ITDD1&id%5B34%5D=K3W7&id%5B35%5D=K65S&id%5B36%5D=KCOE&id%5B37%5D=KDEW&id%5B38%5D=KEAT&id%5B39%5D=KEPH&id%5B40%5D=KFLW&id%5B41%5D=KGEG&id%5B42%5D=KHMS&id%5B43%5D=KLWS&id%5B44%5D=KMWH&id%5B45%5D=KOMK&id%5B46%5D=KPUW&id%5B47%5D=KSFF&id%5B48%5D=KSKA&id%5B49%5D=KSZT&id%5B50%5D=KTLW1&id%5B51%5D=LBRW&id%5B52%5D=LDDW1&id%5B53%5D=LIDW&id%5B54%5D=LKTI1&id%5B55%5D=LPOW1&id%5B56%5D=LVN11&id%5B57%5D=MASW&id%5B58%5D=MIDW1&id%5B59%5D=MISI1&id%5B60%5D=NCSW1&id%5B61%5D=NEFW1&id%5B62%5D=NUCI1&id%5B63%5D=ODSW&id%5B64%5D=OTOW1&id%5B65%5D=OVLW1&id%5B66%5D=PLKI1&id%5B67%5D=PMFW1&id%5B68%5D=POTI1&id%5B69%5D=QUPW1&id%5B70%5D=SBMW&id%5B71%5D=SDMW1&id%5B72%5D=SILW&id%5B73%5D=SPCW1&id%5B74%5D=STRW1&id%5B75%5D=STS54&id%5B76%5D=STZI1&id%5B77%5D=T902I&id%5B78%5D=T904I&id%5B79%5D=TALPO&id%5B80%5D=TBLEW&id%5B81%5D=TCFW1&id%5B82%5D=TCOUL&id%5B83%5D=TDRYD&id%5B84%5D=TDSTY&id%5B85%5D=TKNAP&id%5B86%5D=TLAUR&id%5B87%5D=TMANS&id%5B88%5D=TMETL&id%5B89%5D=TNESP&id%5B90%5D=TOTHE&id%5B91%5D=TPALI&id%5B92%5D=TQUIN&id%5B93%5D=TR529&id%5B94%5D=TSHER&id%5B95%5D=TSILI&id%5B96%5D=TSOW1&id%5B97%5D=TWARD&id%5B98%5D=TWRW1&id%5B99%5D=WPRW1&cursor=eyJzIjo1MDB9"
+    }
+}

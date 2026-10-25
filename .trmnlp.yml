@@ -1,0 +1,22 @@
+# TRMNLP configuration
+# {{ env.VARIABLE }} interpolation is available here
+---
+# auto-reload when files change (`watch: false` to disable)
+watch:
+  - .trmnlp.yml
+  - src
+
+# values of custom fields (defined in src/settings.yml)
+# Run the Go service locally (cd server && go run .) or point at your Lambda Function URL.
+custom_fields:
+  service_url: "{{ env.GLANCE_SERVICE_URL | default: 'http://localhost:8080/' }}"
+  access_token: "{{ env.GLANCE_ACCESS_TOKEN }}"
+  lat_lon: 47.5962,-120.6615
+  location_name: Leavenworth, WA
+  units: us
+
+time_zone: America/Los_Angeles
+
+# override variables
+variables:
+  trmnl: {}

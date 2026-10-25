@@ -1,0 +1,118 @@
+<style>
+  .glance { display: flex; align-items: stretch; height: 100%; min-height: 0; --pill-min: 108px; --pill-w: 62px; }
+  .glance--compact { --pill-min: 64px; --pill-w: 54px; }
+  .glance--tiny { --pill-min: 56px; --pill-w: 44px; }
+  .glance__now { flex: 2.1 1 0; display: flex; flex-direction: column; min-width: 0; }
+  .glance__day { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  .glance__head { display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 6px; }
+  .glance__track { position: relative; flex: 1 1 auto; width: 100%; }
+  .glance__pill {
+    position: absolute; left: 50%; transform: translateX(-50%); width: var(--pill-w);
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 10px 0 8px; box-sizing: border-box;
+  }
+  .glance__pill-top { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .glance__marker {
+    position: absolute; left: 0; right: -8px; transform: translateY(-50%);
+    display: flex; align-items: flex-end; gap: 6px;
+  }
+  .glance__rule { flex: 1 1 auto; border-top: 3px solid currentColor; margin-bottom: 22px; position: relative; min-width: 24px; }
+  .glance--compact .glance__rule, .glance--tiny .glance__rule { margin-bottom: 12px; }
+  .glance__arrow { position: absolute; right: 0; bottom: 1px; width: 0; height: 0; border: 7px solid transparent; }
+  .glance__arrow--up { border-bottom-color: currentColor; border-top-width: 0; }
+  .glance__arrow--down { border-top-color: currentColor; border-bottom-width: 0; bottom: -10px; }
+  .glance__icon { display: block; }
+</style>
+
+{% comment %} Line icons for the condition names the service returns (see server/glance.go). {% endcomment %}
+{% template wx_icon %}
+<svg class="glance__icon" width="{{ size | default: 28 }}" height="{{ size | default: 28 }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="{{ name }}">
+  {% case name %}
+  {% when 'clear' %}
+    <circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/>
+  {% when 'night' %}
+    <path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z"/>
+  {% when 'partly' %}
+    <circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M1.5 8H3M3.4 3.4l1 1M12.6 3.4l-1 1M3.4 12.6l1-1"/><path d="M9 21h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8.4 15 3 3 0 0 0 9 21z"/>
+  {% when 'night_partly' %}
+    <path d="M11.5 8.5A4.5 4.5 0 0 1 5.5 2.6 4.5 4.5 0 1 0 11.5 8.5z"/><path d="M9 21h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8.4 15 3 3 0 0 0 9 21z"/>
+  {% when 'rain' %}
+    <path d="M6.5 14.5h11a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 7.5a3.5 3.5 0 0 0 .2 7z"/><path d="M8 17.5l-1 3M12 17.5l-1 3M16 17.5l-1 3"/>
+  {% when 'snow' %}
+    <path d="M6.5 14.5h11a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 7.5a3.5 3.5 0 0 0 .2 7z"/><path d="M8 18h.01M12 18h.01M16 18h.01M10 21.5h.01M14 21.5h.01" stroke-width="3"/>
+  {% when 'sleet' %}
+    <path d="M6.5 14.5h11a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 7.5a3.5 3.5 0 0 0 .2 7z"/><path d="M8 17.5l-1 3M16 17.5l-1 3"/><path d="M12 18.5h.01" stroke-width="3"/>
+  {% when 'storm' %}
+    <path d="M6.5 14.5h11a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 7.5a3.5 3.5 0 0 0 .2 7z"/><path d="M13 14.5l-3 4h4l-3 4"/>
+  {% when 'fog' %}
+    <path d="M6.5 11h11a3.5 3.5 0 0 0 .3-7A5.5 5.5 0 0 0 6.6 5 3 3 0 0 0 6.5 11z"/><path d="M3 15h18M5 19h14"/>
+  {% when 'wind' %}
+    <path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h7"/>
+  {% else %}
+    <path d="M6.5 18h11a4.5 4.5 0 0 0 .4-9A6.5 6.5 0 0 0 6.3 10a4 4 0 0 0 .2 8z"/>
+  {% endcase %}
+</svg>
+{% endtemplate %}
+
+{% comment %}
+  The glance: current temperature on the left, then one pill per day spanning low to high.
+  Every pill shares one temperature scale (pct values come precomputed from the service),
+  and darker pills mean rougher weather.
+  Params: now, days, updated (from the polled payload), bars (number of days), variant ('', 'compact', 'tiny').
+{% endcomment %}
+{% template glance %}
+{% assign icon_size = 28 %}
+{% if variant == 'compact' %}{% assign icon_size = 22 %}{% elsif variant == 'tiny' %}{% assign icon_size = 18 %}{% endif %}
+<div class="glance{% if variant != blank %} glance--{{ variant }}{% endif %}">
+  <div class="glance__now">
+    <div class="glance__head" style="visibility: hidden;"><span class="label label--small">&nbsp;</span>{% if variant != blank %}{% render "wx_icon", name: now.icon, size: icon_size %}{% endif %}</div>
+    <div class="glance__track">
+      <div class="glance__marker" style="top: calc((100% - var(--pill-min)) * {{ now.pct }} / 100 + var(--pill-min) / 2);">
+        <div class="flex flex--col">
+          {% if variant != 'tiny' %}<span class="label label--small">{{ now.observed_at | default: updated }}</span>{% endif %}
+          <span class="value {% if variant == blank %}value--xxlarge{% elsif variant == 'compact' %}value--xlarge{% else %}value--large{% endif %} value--tnums">{{ now.temp }}°</span>
+        </div>
+        <div class="glance__rule"><span class="glance__arrow glance__arrow--{{ now.trend }}"></span></div>
+      </div>
+    </div>
+  </div>
+  {% for day in days limit: bars %}
+  <div class="glance__day">
+    <div class="glance__head">
+      <span class="label {% if variant == blank %}label--base{% else %}label--small{% endif %}">{% if variant == 'tiny' %}{{ day.dow }}{% else %}{{ day.label }}{% endif %}</span>
+      {% if variant != blank %}{% render "wx_icon", name: day.icon, size: icon_size %}{% endif %}
+    </div>
+    <div class="glance__track">
+      <div class="glance__pill rounded--full bg--{{ day.shade }}" style="top: calc((100% - var(--pill-min)) * {{ day.top_pct }} / 100); height: calc((100% - var(--pill-min)) * {{ day.height_pct }} / 100 + var(--pill-min));">
+        <div class="glance__pill-top">
+          {% if variant == blank %}{% render "wx_icon", name: day.icon, size: icon_size %}{% endif %}
+          <span class="value {% if variant == blank %}value--small{% else %}value--xsmall{% endif %} font--bold text-stroke text-stroke--white">{{ day.hi }}</span>
+        </div>
+        <span class="value {% if variant == blank %}value--small{% else %}value--xsmall{% endif %} font--bold text-stroke text-stroke--white">{{ day.lo }}</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endtemplate %}
+
+{% template title_bar %}
+<div class="title_bar">
+  <svg class="image" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M1.5 8H3M3.4 3.4l1 1M12.6 3.4l-1 1M3.4 12.6l1-1"/><path d="M9 21h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8.4 15 3 3 0 0 0 9 21z"/></svg>
+  {% if alerts.size > 0 %}
+    <span class="title">{{ alerts.first.event }}</span>
+    {% if alerts.size > 1 %}<span class="label label--small label--inverted">+{{ alerts.size | minus: 1 }}</span>{% endif %}
+  {% else %}
+    <span class="title">{% if short %}{{ now.short }}{% else %}{{ now.short }} · {{ now.wind }}{% endif %}</span>
+  {% endif %}
+  <span class="instance">{{ location }}</span>
+</div>
+{% endtemplate %}
+
+{% template error %}
+<div class="layout layout--col layout--center">
+  <span class="title">Weather unavailable</span>
+  <span class="description">{{ message | default: "No data from the NWS Weather Glance service yet." }}</span>
+</div>
+<div class="title_bar"><span class="title">NWS Weather Glance</span></div>
+{% endtemplate %}

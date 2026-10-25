@@ -1,0 +1,135 @@
+{
+    "operationalMode":"Production",
+    "srsName":"WGS 1984",
+    "creationDate":"2026-10-25T03:52:26-07:00",
+    "creationDateLocal":"25 Oct 07:45 am PDT",
+    "productionCenter":"Spokane, WA",
+    "credit":"https://www.weather.gov/otx",
+    "moreInformation":"https://weather.gov",
+    "location":{
+        "region":"wrh",
+        "latitude":"47.59",
+        "longitude":"-120.67",
+        "elevation":"1198",
+        "wfo":"OTX",
+        "timezone":"P|Y|8",
+        "areaDescription":"Leavenworth WA",
+        "radar":"KATX",
+        "zone":"WAZ047",
+        "county":"WAC007",
+        "firezone":"WAZ696",
+        "metar":"LVN11"
+},
+    "time":{
+        "layoutKey":"k-p12h-n13-1",
+        "startPeriodName":[
+            "Today",
+            "Tonight",
+            "Monday",
+            "Monday Night",
+            "Tuesday",
+            "Tuesday Night",
+            "Wednesday",
+            "Wednesday Night",
+            "Thursday",
+            "Thursday Night",
+            "Friday",
+            "Friday Night",
+            "Saturday"
+        ],
+        "startValidTime":[
+            "2026-10-25T07:00:00-07:00",
+            "2026-10-25T18:00:00-07:00",
+            "2026-10-26T06:00:00-07:00",
+            "2026-10-26T18:00:00-07:00",
+            "2026-10-27T06:00:00-07:00",
+            "2026-10-27T18:00:00-07:00",
+            "2026-10-28T06:00:00-07:00",
+            "2026-10-28T18:00:00-07:00",
+            "2026-10-29T06:00:00-07:00",
+            "2026-10-29T18:00:00-07:00",
+            "2026-10-30T06:00:00-07:00",
+            "2026-10-30T18:00:00-07:00",
+            "2026-10-31T06:00:00-07:00"
+        ],
+        "tempLabel":["High","Low","High","Low","High","Low","High","Low","High","Low","High","Low","High"]
+    },
+  "data":{
+        "temperature":["55","34","56","35","56","33","51","28","48","27","49","25","52"],
+        "pop":["20","50","60",null,null,"40","70","60","70","40","20",null,null],
+
+        "weather":[
+            "Slight Chance Showers",
+            "Chance Showers",
+            "Showers Likely",
+            "Mostly Cloudy",
+            "Partly Sunny",
+            "Chance Showers",
+            "Showers Likely",
+            "Showers Likely then Rain/Snow Likely",
+            "Rain/Snow Likely then Showers Likely",
+            "Chance Showers then Slight Chance Rain/Snow",
+            "Slight Chance Rain/Snow then Slight Chance Showers",
+            "Partly Cloudy",
+            "Mostly Sunny"
+            ],
+        "iconLink":[
+            "https://forecast.weather.gov/newimages/medium/shra20.png",
+            "https://forecast.weather.gov/newimages/medium/nshra50.png",
+            "https://forecast.weather.gov/newimages/medium/shra60.png",
+            "https://forecast.weather.gov/newimages/medium/nbkn.png",
+            "https://forecast.weather.gov/newimages/medium/bkn.png",
+            "https://forecast.weather.gov/newimages/medium/nshra40.png",
+            "https://forecast.weather.gov/newimages/medium/shra70.png",
+            "https://forecast.weather.gov/DualImage.php?i=nshra&j=nrasn&ip=60&jp=60",
+            "https://forecast.weather.gov/DualImage.php?i=rasn&j=shra&ip=70&jp=70",
+            "https://forecast.weather.gov/DualImage.php?i=nshra&j=nrasn&ip=40&jp=20",
+            "https://forecast.weather.gov/DualImage.php?i=rasn&j=hi_shwrs&ip=20&jp=20",
+            "https://forecast.weather.gov/newimages/medium/nsct.png",
+            "https://forecast.weather.gov/newimages/medium/sct.png"
+            ],
+        "hazard":[
+
+            ],
+        "hazardUrl":[
+
+            ],
+        "text":[
+            "A 20 percent chance of showers after 11am.  Partly sunny, with a high near 55. Calm wind. ",
+            "A 50 percent chance of showers.  Mostly cloudy, with a low around 34. Calm wind.  New precipitation amounts of less than a tenth of an inch possible. ",
+            "Showers likely, mainly before 11am.  Mostly cloudy, with a high near 56. Calm wind.  Chance of precipitation is 60%. New precipitation amounts between a tenth and quarter of an inch possible. ",
+            "Mostly cloudy, with a low around 35. Calm wind. ",
+            "Partly sunny, with a high near 56. Light west wind. ",
+            "A 40 percent chance of showers after 11pm.  Mostly cloudy, with a low around 33.",
+            "Showers likely, mainly after 11am.  Mostly cloudy, with a high near 51. Chance of precipitation is 70%.",
+            "Rain showers likely before 5am, then rain likely, possibly mixed with snow showers.  Mostly cloudy, with a low around 28. Chance of precipitation is 60%.",
+            "A chance of rain and snow showers before 8am, then rain showers likely.  Mostly cloudy, with a high near 48. Chance of precipitation is 70%.",
+            "A chance of rain showers before 2am, then a slight chance of rain and snow showers.  Mostly cloudy, with a low around 27. Chance of precipitation is 40%.",
+            "A slight chance of rain and snow showers.  Mostly sunny, with a high near 49. Chance of precipitation is 20%.",
+            "Partly cloudy, with a low around 25.",
+            "Mostly sunny, with a high near 52."            ]
+        },
+        "currentobservation":{
+            "id":"LVN11",
+            "name":"Leavenworth",
+            "elev":"1190.0",
+            "latitude":"47.59119",
+            "longitude":"-120.67132",
+            "Date":"25 Oct 07:00 AM PDT",
+            "Temp":"35",
+            "Dewp":"29",
+            "Relh":"77",
+            "Winds":"NA",
+            "Windd":"NA",
+            "Gust":"NA",
+            "Weather":"NA",
+            "Weatherimage":"NULL",
+            "Visibility":"NA",
+            "Altimeter":"NA",
+            "SLP":"NA",
+            "timezone":"PST",
+            "state":"WA",
+            "WindChill":"NA"
+        }
+    }
+    

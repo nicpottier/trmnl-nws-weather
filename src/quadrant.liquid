@@ -1,0 +1,8 @@
+{% if days.size > 0 %}
+<div class="layout layout--col layout--stretch">
+  {% render "glance", now: now, days: days, updated: updated, bars: 4, variant: 'tiny' %}
+</div>
+{% render "title_bar", now: now, alerts: alerts, location: location, short: true %}
+{% else %}
+{% render "error", message: error %}
+{% endif %}

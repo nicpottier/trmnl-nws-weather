@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: NWS Weather Glance - compact National Weather Service forecast for a TRMNL private plugin.
+
+Parameters:
+  AccessToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional shared secret; when set, requests must include ?token=<value>.
+  NwsUserAgent:
+    Type: String
+    Default: "trmnl-nws-weather (https://github.com/nicpottier/trmnl-nws-weather)"
+    Description: User-Agent sent to api.weather.gov. NWS asks that it include a way to contact you.
+
+Resources:
+  GlanceFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Architectures: [arm64]
+      MemorySize: 128
+      Timeout: 15
+      Environment:
+        Variables:
+          ACCESS_TOKEN: !Ref AccessToken
+          NWS_USER_AGENT: !Ref NwsUserAgent
+      FunctionUrlConfig:
+        AuthType: NONE
+
+  # Public Function URLs also need lambda:InvokeFunction (SAM only adds InvokeFunctionUrl).
+  GlanceInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref GlanceFunction
+      Action: lambda:InvokeFunction
+      Principal: "*"
+      InvokedViaFunctionUrl: true
+
+  GlanceLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${GlanceFunction}
+      RetentionInDays: 14
+
+Outputs:
+  ServiceUrl:
+    Description: Paste this into the plugin's "Service URL" field.
+    Value: !GetAtt GlanceFunctionUrl.FunctionUrl
