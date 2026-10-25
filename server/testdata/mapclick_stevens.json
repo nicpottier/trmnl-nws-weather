@@ -1,0 +1,135 @@
+{
+    "operationalMode":"Production",
+    "srsName":"WGS 1984",
+    "creationDate":"2026-10-24T23:27:02-07:00",
+    "creationDateLocal":"25 Oct 08:00 am PDT",
+    "productionCenter":"Seattle, WA",
+    "credit":"https://www.weather.gov/sew",
+    "moreInformation":"https://weather.gov",
+    "location":{
+        "region":"wrh",
+        "latitude":"47.75",
+        "longitude":"-121.09",
+        "elevation":"4879",
+        "wfo":"SEW",
+        "timezone":"P|Y|8",
+        "areaDescription":"Stevens Pass WA",
+        "radar":"KATX",
+        "zone":"WAZ302",
+        "county":"WAC033",
+        "firezone":"WAZ658",
+        "metar":"SKKW1"
+},
+    "time":{
+        "layoutKey":"k-p12h-n13-1",
+        "startPeriodName":[
+            "Today",
+            "Tonight",
+            "Monday",
+            "Monday Night",
+            "Tuesday",
+            "Tuesday Night",
+            "Wednesday",
+            "Wednesday Night",
+            "Thursday",
+            "Thursday Night",
+            "Friday",
+            "Friday Night",
+            "Saturday"
+        ],
+        "startValidTime":[
+            "2026-10-25T08:00:00-07:00",
+            "2026-10-25T18:00:00-07:00",
+            "2026-10-26T06:00:00-07:00",
+            "2026-10-26T18:00:00-07:00",
+            "2026-10-27T06:00:00-07:00",
+            "2026-10-27T18:00:00-07:00",
+            "2026-10-28T06:00:00-07:00",
+            "2026-10-28T18:00:00-07:00",
+            "2026-10-29T06:00:00-07:00",
+            "2026-10-29T18:00:00-07:00",
+            "2026-10-30T06:00:00-07:00",
+            "2026-10-30T18:00:00-07:00",
+            "2026-10-31T06:00:00-07:00"
+        ],
+        "tempLabel":["High","Low","High","Low","High","Low","High","Low","High","Low","High","Low","High"]
+    },
+  "data":{
+        "temperature":["41","38","42","36","39","33","37","29","36","27","38","25","40"],
+        "pop":["40","50","60","50","60","80","90",null,null,null,null,null,null],
+
+        "weather":[
+            "Chance Rain/Snow",
+            "Chance Rain/Snow",
+            "Rain/Snow Likely",
+            "Chance Rain/Snow",
+            "Rain/Snow Likely",
+            "Snow",
+            "Snow",
+            "Snow Likely",
+            "Snow Likely",
+            "Chance Snow",
+            "Slight Chance Snow",
+            "Mostly Cloudy",
+            "Mostly Sunny"
+            ],
+        "iconLink":[
+            "https://forecast.weather.gov/newimages/medium/rasn40.png",
+            "https://forecast.weather.gov/newimages/medium/nrasn50.png",
+            "https://forecast.weather.gov/newimages/medium/rasn60.png",
+            "https://forecast.weather.gov/newimages/medium/nrasn50.png",
+            "https://forecast.weather.gov/newimages/medium/rasn60.png",
+            "https://forecast.weather.gov/newimages/medium/nsn80.png",
+            "https://forecast.weather.gov/newimages/medium/sn90.png",
+            "https://forecast.weather.gov/newimages/medium/nsn.png",
+            "https://forecast.weather.gov/newimages/medium/sn.png",
+            "https://forecast.weather.gov/newimages/medium/nsn.png",
+            "https://forecast.weather.gov/newimages/medium/sn.png",
+            "https://forecast.weather.gov/newimages/medium/nbkn.png",
+            "https://forecast.weather.gov/newimages/medium/sct.png"
+            ],
+        "hazard":[
+
+            ],
+        "hazardUrl":[
+
+            ],
+        "text":[
+            "A chance of rain and snow, mainly after 2pm.  Partly sunny, with a high near 41. East wind 6 to 8 mph, with gusts as high as 20 mph.  Chance of precipitation is 40%. Little or no snow accumulation expected. ",
+            "A chance of rain and snow before 3am, then a chance of rain between 3am and 5am, then a slight chance of rain and snow after 5am.  Mostly cloudy, with a steady temperature around 38. East wind 3 to 7 mph.  Chance of precipitation is 50%. Little or no snow accumulation expected. ",
+            "Rain and snow likely before 4pm, then a chance of rain.  Cloudy, with a high near 42. Calm wind.  Chance of precipitation is 60%. Little or no snow accumulation expected. ",
+            "A chance of rain and snow.  Cloudy, with a low around 36. West wind 3 to 6 mph.  Chance of precipitation is 50%. Little or no snow accumulation expected. ",
+            "Rain and snow likely.  Mostly cloudy, with a high near 39. West wind around 6 mph.  Chance of precipitation is 60%. Little or no snow accumulation expected. ",
+            "Snow.  Low around 33. Chance of precipitation is 80%. New snow accumulation of less than a half inch possible. ",
+            "Snow.  High near 37. Chance of precipitation is 90%. New snow accumulation of less than a half inch possible. ",
+            "Snow likely, mainly before 11pm.  Mostly cloudy, with a low around 29.",
+            "Snow likely, mainly after 11am.  Mostly cloudy, with a high near 36.",
+            "A chance of snow.  Mostly cloudy, with a low around 27.",
+            "A slight chance of snow.  Partly sunny, with a high near 38.",
+            "Mostly cloudy, with a low around 25.",
+            "Mostly sunny, with a high near 40."            ]
+        },
+        "currentobservation":{
+            "id":"SKKW1",
+            "name":"JOHNSON RIDGE",
+            "elev":"2028.0",
+            "latitude":"47.799920",
+            "longitude":"-121.286",
+            "Date":"25 Oct 07:29 AM PDT",
+            "Temp":"46",
+            "Dewp":"30",
+            "Relh":"54",
+            "Winds":"2",
+            "Windd":"77",
+            "Gust":"NA",
+            "Weather":"NA",
+            "Weatherimage":"NULL",
+            "Visibility":"NA",
+            "Altimeter":"NA",
+            "SLP":"NA",
+            "timezone":"PST",
+            "state":"WA",
+            "WindChill":"NA"
+        }
+    }
+    

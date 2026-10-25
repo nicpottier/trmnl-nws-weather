@@ -22,6 +22,7 @@ type Glance struct {
 	Days        []Day   `json:"days"`
 	Alerts      []Alert `json:"alerts"`
 	Scale       Scale   `json:"scale"`
+	Chart       *Chart  `json:"chart,omitempty"`
 }
 
 type Now struct {
@@ -51,6 +52,8 @@ type Day struct {
 	Shade     string  `json:"shade"`
 	TopPct    float64 `json:"top_pct"`
 	HeightPct float64 `json:"height_pct"`
+	Snow      string  `json:"snow"`   // forecast snowfall for the day, e.g. "1.0″", or ""
+	Precip    string  `json:"precip"` // forecast liquid precipitation, e.g. "0.19″", or ""
 }
 
 type Scale struct {
@@ -63,6 +66,7 @@ type Options struct {
 	Units    string // "us" or "si"
 	Name     string // overrides the NWS city name
 	Days     int
+	Bars     string // chart bars: "auto", "snow" or "precip"
 }
 
 func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Time) (*Glance, error) {
@@ -76,12 +80,14 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		wg                 sync.WaitGroup
 		periods, hourly    []Period
 		alerts             []Alert
+		grid               *GridData
 		periodsErr, hrsErr error
 	)
-	wg.Add(3)
+	wg.Add(4)
 	go func() { defer wg.Done(); periods, periodsErr = nws.Forecast(ctx, pp.Forecast, opts.Units) }()
 	go func() { defer wg.Done(); hourly, hrsErr = nws.Forecast(ctx, pp.ForecastHourly, opts.Units) }()
 	go func() { defer wg.Done(); alerts, _ = nws.Alerts(ctx, opts.Lat, opts.Lon) }()
+	go func() { defer wg.Done(); grid, _ = nws.GridData(ctx, pp.ForecastGridData) }() // chart is optional
 	wg.Wait()
 
 	if periodsErr != nil {
@@ -110,7 +116,11 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 
 	// Prefer a measured temperature; the forecast for this hour can be several degrees off.
 	nowTemp, humidity, source, observedAt := hour.Temperature, hour.RelativeHumidity.Or(0), "forecast", ""
-	if obs, err := nws.CurrentObservation(ctx, opts.Lat, opts.Lon, points, loc, now); err == nil {
+	pointElevM := math.NaN()
+	if grid != nil && grid.Properties.Elevation.Value != nil {
+		pointElevM = *grid.Properties.Elevation.Value
+	}
+	if obs, err := nws.CurrentObservation(ctx, opts.Lat, opts.Lon, points, pointElevM, loc, now); err == nil {
 		nowTemp, source, observedAt = fToUnits(obs.TempF, opts.Units), obs.Station, obs.ObservedAt.In(loc).Format("3:04 PM")
 		if obs.Humidity != nil {
 			humidity = *obs.Humidity
@@ -139,6 +149,11 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	for i := range days {
 		days[i].TopPct = pct(days[i].Hi)
 		days[i].HeightPct = math.Round(float64(days[i].Hi-days[i].Lo)*1000/span) / 10
+	}
+
+	var chart *Chart
+	if grid != nil && len(days) > 0 {
+		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars)
 	}
 
 	name := opts.Name
@@ -177,6 +192,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		Days:        days,
 		Alerts:      alerts[:min(len(alerts), 3)],
 		Scale:       Scale{Min: lo, Max: hi},
+		Chart:       chart,
 	}, nil
 }
 

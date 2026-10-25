@@ -29,6 +29,7 @@ type Points struct {
 		Forecast            string `json:"forecast"`
 		ForecastHourly      string `json:"forecastHourly"`
 		ObservationStations string `json:"observationStations"`
+		ForecastGridData    string `json:"forecastGridData"`
 		TimeZone            string `json:"timeZone"`
 		RelativeLocation    struct {
 			Properties struct {
@@ -178,8 +179,12 @@ type Observation struct {
 	ObservedAt time.Time
 }
 
-// maxObservationAge is how old a reading can be before we fall back to the hourly forecast.
-const maxObservationAge = 2 * time.Hour
+const (
+	// maxObservationAge is how old a reading can be before we fall back to the hourly forecast.
+	maxObservationAge = 2 * time.Hour
+	// maxElevationGapM keeps a valley station from standing in for a mountain pass (or vice versa).
+	maxElevationGapM = 300.0
+)
 
 // CurrentObservation finds the freshest nearby measured temperature.
 //
@@ -187,19 +192,35 @@ const maxObservationAge = 2 * time.Hour
 // point (Leavenworth's LVN11 can be days behind there), while forecast.weather.gov's own
 // point-forecast JSON — the source of the "current conditions" box on its MapClick page —
 // carries the latest reading. So try that first, then the gridpoint's stations in distance order.
-func (c *nwsClient) CurrentObservation(ctx context.Context, lat, lon float64, p *Points, loc *time.Location, now time.Time) (*Observation, error) {
+//
+// pointElevM is the forecast point's elevation in meters, or NaN if unknown.
+func (c *nwsClient) CurrentObservation(ctx context.Context, lat, lon float64, p *Points, pointElevM float64, loc *time.Location, now time.Time) (*Observation, error) {
 	if obs, err := c.mapClickObservation(ctx, lat, lon, loc, now); err == nil && now.Sub(obs.ObservedAt) <= maxObservationAge {
 		return obs, nil
 	}
-	return c.stationObservation(ctx, p, now)
+	return c.stationObservation(ctx, p, pointElevM, now)
 }
 
+// looseNumber accepts MapClick's numbers, which arrive as JSON strings, numbers or "NA".
+type looseNumber string
+
+func (n *looseNumber) UnmarshalJSON(b []byte) error {
+	*n = looseNumber(strings.Trim(string(b), `"`))
+	return nil
+}
+
+func (n looseNumber) Float64() (float64, error) { return strconv.ParseFloat(string(n), 64) }
+
 type mapClick struct {
+	Location struct {
+		Elevation looseNumber `json:"elevation"` // feet
+	} `json:"location"`
 	CurrentObservation struct {
-		ID   string `json:"id"`
-		Date string `json:"Date"`
-		Temp string `json:"Temp"`
-		Relh string `json:"Relh"`
+		Elev looseNumber `json:"elev"` // feet
+		ID   string      `json:"id"`
+		Date string      `json:"Date"`
+		Temp string      `json:"Temp"`
+		Relh string      `json:"Relh"`
 	} `json:"currentobservation"`
 }
 
@@ -210,6 +231,12 @@ func (c *nwsClient) mapClickObservation(ctx context.Context, lat, lon float64, l
 		return nil, err
 	}
 	co := m.CurrentObservation
+	pointFt, err1 := m.Location.Elevation.Float64()
+	stationFt, err2 := co.Elev.Float64()
+
+	if err1 == nil && err2 == nil && math.Abs(pointFt-stationFt)*0.3048 > maxElevationGapM {
+		return nil, fmt.Errorf("MapClick station %s is at %.0f ft, the point at %.0f ft", co.ID, stationFt, pointFt)
+	}
 	temp, err := strconv.ParseFloat(co.Temp, 64)
 	if err != nil {
 		return nil, fmt.Errorf("no temperature in MapClick observation: %q", co.Temp)
@@ -245,7 +272,8 @@ func parseMapClickDate(s string, loc *time.Location, now time.Time) (time.Time, 
 type stationList struct {
 	Features []struct {
 		Properties struct {
-			StationIdentifier string `json:"stationIdentifier"`
+			StationIdentifier string   `json:"stationIdentifier"`
+			Elevation         Quantity `json:"elevation"`
 		} `json:"properties"`
 	} `json:"features"`
 }
@@ -259,7 +287,7 @@ type stationObs struct {
 }
 
 // stationObservation returns the closest of the gridpoint's first few stations with a fresh reading.
-func (c *nwsClient) stationObservation(ctx context.Context, p *Points, now time.Time) (*Observation, error) {
+func (c *nwsClient) stationObservation(ctx context.Context, p *Points, pointElevM float64, now time.Time) (*Observation, error) {
 	if p.Properties.ObservationStations == "" {
 		return nil, fmt.Errorf("no observation stations for this point")
 	}
@@ -271,6 +299,9 @@ func (c *nwsClient) stationObservation(ctx context.Context, p *Points, now time.
 	results := make([]*Observation, len(list.Features))
 	var wg sync.WaitGroup
 	for i, f := range list.Features {
+		if elev := f.Properties.Elevation.Value; elev != nil && math.Abs(*elev-pointElevM) > maxElevationGapM {
+			continue // NaN (unknown point elevation) never compares greater, so every station passes
+		}
 		wg.Add(1)
 		go func(i int, id string) {
 			defer wg.Done()

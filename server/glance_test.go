@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -67,12 +68,15 @@ func fakeNWS(t *testing.T, dropPeriods int) *httptest.Server {
 			props["forecast"] = srv.URL + "/forecast"
 			props["forecastHourly"] = srv.URL + "/forecast/hourly"
 			props["observationStations"] = srv.URL + "/stations"
+			props["forecastGridData"] = srv.URL + "/gridpoints"
 		case r.URL.Path == "/forecast":
 			v = read("forecast.json")
 			props := v["properties"].(map[string]any)
 			props["periods"] = props["periods"].([]any)[dropPeriods:]
 		case r.URL.Path == "/forecast/hourly":
 			v = read("hourly.json")
+		case r.URL.Path == "/gridpoints":
+			v = read("grid.json")
 		case r.URL.Path == "/MapClick.php":
 			v = read("mapclick.json") // LVN11, 35°F at 7:00 AM PDT
 		case r.URL.Path == "/stations":
@@ -139,6 +143,17 @@ func TestBuildGlanceMorning(t *testing.T) {
 			t.Errorf("%s pill out of range: top %v height %v", d.Label, d.TopPct, d.HeightPct)
 		}
 	}
+	// Leavenworth's grid has rain but no snow, so the chart falls back to precipitation bars.
+	c := g.Chart
+	if c == nil || c.BarKind != "precip" || len(c.Bars) != 28 || c.Days != 7 || c.TempPath == "" || c.FreezeY == nil {
+		t.Fatalf("chart = %+v", c)
+	}
+	if g.Days[1].Precip != "0.16″" || g.Days[0].Precip != "" || g.Days[1].Snow != "" {
+		t.Errorf("Monday precip/snow = %q/%q", g.Days[1].Precip, g.Days[1].Snow)
+	}
+	if c.NowPct < 4 || c.NowPct > 5 { // 7:45 AM on day 1 of 7
+		t.Errorf("now_pct = %v", c.NowPct)
+	}
 	if len(g.Alerts) != 1 || g.Alerts[0].Event != "Winter Weather Advisory" {
 		t.Errorf("alerts = %+v", g.Alerts)
 	}
@@ -184,22 +199,37 @@ func TestParseMapClickDate(t *testing.T) {
 	}
 }
 
-func TestParseOptions(t *testing.T) {
-	q := map[string][]string{"lat_lon": {"47.5962, -120.6615"}, "units": {"si"}, "days": {"5"}}
-	opts, err := parseOptions(q)
-	if err != nil || opts.Lat != 47.5962 || opts.Lon != -120.6615 || opts.Units != "si" || opts.Days != 5 {
-		t.Errorf("parseOptions = %+v, %v", opts, err)
+func TestParseRequest(t *testing.T) {
+	q := url.Values{"lat_lon": {"47.5962, -120.6615"}, "units": {"si"}, "days": {"5"}}
+	opts, multi, err := parseRequest(q)
+	if err != nil || multi || len(opts) != 1 {
+		t.Fatalf("parseRequest = %+v, %v, %v", opts, multi, err)
 	}
-	if _, err := parseOptions(map[string][]string{"lat_lon": {"nope"}}); err == nil {
+	if o := opts[0]; o.Lat != 47.5962 || o.Lon != -120.6615 || o.Units != "si" || o.Days != 5 || o.Bars != "auto" {
+		t.Errorf("opts = %+v", o)
+	}
+	if _, _, err := parseRequest(url.Values{"lat_lon": {"nope"}}); err == nil {
 		t.Error("expected error for bad lat_lon")
 	}
 
+	q = url.Values{"locations": {"Leavenworth, WA | 47.5962,-120.6615\n Stevens Pass|47.7448,-121.0890;\n47.1,-121.2"}, "bars": {"snow"}}
+	opts, multi, err = parseRequest(q)
+	if err != nil || !multi || len(opts) != 3 {
+		t.Fatalf("parseRequest = %+v, %v, %v", opts, multi, err)
+	}
+	if opts[0].Name != "Leavenworth, WA" || opts[1].Name != "Stevens Pass" || opts[1].Lon != -121.089 || opts[2].Name != "" || opts[2].Bars != "snow" {
+		t.Errorf("opts = %+v", opts)
+	}
+	if _, _, err := parseRequest(url.Values{"locations": {"Home | here"}}); err == nil {
+		t.Error("expected error for bad coordinates")
+	}
+
 	t.Setenv("ACCESS_TOKEN", "s3cret")
-	if _, err := parseOptions(q); err == nil {
+	if _, _, err := parseRequest(q); err == nil {
 		t.Error("expected token error")
 	}
-	q["token"] = []string{"s3cret"}
-	if _, err := parseOptions(q); err != nil {
+	q.Set("token", "s3cret")
+	if _, _, err := parseRequest(q); err != nil {
 		t.Errorf("valid token rejected: %v", err)
 	}
 }
@@ -224,5 +254,103 @@ func TestLambdaHandler(t *testing.T) {
 	resp, _ = lambdaHandler(context.Background(), events.LambdaFunctionURLRequest{})
 	if resp.StatusCode != 400 {
 		t.Errorf("missing lat_lon status = %d", resp.StatusCode)
+	}
+}
+
+func TestParseInterval(t *testing.T) {
+	for in, want := range map[string]time.Duration{
+		"2026-10-25T12:00:00+00:00/PT6H":   6 * time.Hour,
+		"2026-10-25T12:00:00+00:00/P1D":    24 * time.Hour,
+		"2026-10-25T12:00:00+00:00/P1DT6H": 30 * time.Hour,
+		"2026-10-25T12:00:00+00:00/PT30M":  30 * time.Minute,
+	} {
+		start, end, err := parseInterval(in)
+		if err != nil || end.Sub(start) != want || start.Hour() != 12 {
+			t.Errorf("parseInterval(%q) = %v, %v, %v", in, start, end, err)
+		}
+	}
+	if _, _, err := parseInterval("2026-10-25T12:00:00+00:00"); err == nil {
+		t.Error("expected error without a duration")
+	}
+}
+
+func TestBuildChartSnow(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	now := time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC) // 8 AM PDT
+	var grid GridData
+	// 0°C and 5°C alternating every 12h from local midnight; 50.8 mm (2") of snow over 12h on day 2,
+	// starting at local noon (19:00Z).
+	if err := json.Unmarshal([]byte(`{"properties":{
+		"temperature":{"values":[
+			{"validTime":"2026-10-25T07:00:00+00:00/PT12H","value":0},
+			{"validTime":"2026-10-25T19:00:00+00:00/PT12H","value":5},
+			{"validTime":"2026-10-26T07:00:00+00:00/PT12H","value":-5}]},
+		"snowfallAmount":{"values":[{"validTime":"2026-10-26T19:00:00+00:00/PT12H","value":50.8}]},
+		"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T19:00:00+00:00/PT12H","value":5.08}]}}}`), &grid); err != nil {
+		t.Fatal(err)
+	}
+	days := make([]Day, 3)
+
+	c := buildChart(&grid, days, loc, now, "us", "auto")
+	if c.BarKind != "snow" || c.BarUnit != "″" || len(c.Bars) != 12 {
+		t.Fatalf("chart = %+v", c)
+	}
+	// Day 2 noon-midnight local is bars 6 and 7 (6-hour buckets), 1" each against a 2" full scale.
+	if c.Bars[6] != 50 || c.Bars[7] != 50 || c.Bars[5] != 0 || c.Bars[8] != 0 {
+		t.Errorf("bars = %v", c.Bars)
+	}
+	if days[1].Snow != "2.0″" || days[1].Precip != "0.20″" || days[0].Snow != "" {
+		t.Errorf("days = %+v", days)
+	}
+	if c.TempMin != 20 || c.TempMax != 45 || c.FreezeY == nil || c.Label != "Snow 2.0″" {
+		t.Errorf("scale %d-%d freeze %v label %q", c.TempMin, c.TempMax, c.FreezeY, c.Label)
+	}
+
+	c = buildChart(&grid, make([]Day, 3), loc, now, "us", "precip")
+	if c.BarKind != "precip" || c.BarMax != "0.25″" || c.Bars[6] != 40 {
+		t.Errorf("forced precip chart = %+v", c)
+	}
+
+	c = buildChart(&grid, make([]Day, 3), loc, now, "si", "auto")
+	if c.BarUnit != "cm" || c.TempMin != -10 || c.Freeze != "0°" || c.Label != "Snow 5.1cm" {
+		t.Errorf("metric chart = %+v", c)
+	}
+}
+
+func TestMapClickRejectsDistantElevation(t *testing.T) {
+	// Stevens Pass (4879 ft) gets Skykomish's SKKW1 (2028 ft) as its MapClick station.
+	b, err := os.ReadFile("testdata/mapclick_stevens.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write(b) }))
+	defer srv.Close()
+	old := forecastBase
+	forecastBase = srv.URL
+	defer func() { forecastBase = old }()
+
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	_, err = newNWSClient().mapClickObservation(context.Background(), 47.7448, -121.089, loc, time.Now())
+	if err == nil || !strings.Contains(err.Error(), "SKKW1") {
+		t.Errorf("expected elevation rejection, got %v", err)
+	}
+}
+
+func TestServeMultipleLocations(t *testing.T) {
+	srv := fakeNWS(t, 0)
+	oldNWS, oldForecast := nwsBase, forecastBase
+	nwsBase, forecastBase = srv.URL, srv.URL
+	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
+
+	status, body := serve(context.Background(), url.Values{"locations": {"Leavenworth, WA | 47.5962,-120.6615\nUp the hill | 47.7448,-121.0890"}})
+	var resp struct {
+		Count     int      `json:"count"`
+		Locations []Glance `json:"locations"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil || status != 200 || resp.Count != 2 {
+		t.Fatalf("status %d, body %s", status, body)
+	}
+	if resp.Locations[0].Location != "Leavenworth, WA" || resp.Locations[1].Location != "Up the hill" || resp.Locations[1].Chart == nil {
+		t.Errorf("locations = %+v", resp.Locations)
 	}
 }

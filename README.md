@@ -1,30 +1,43 @@
-# NWS Weather Glance for TRMNL
+# NWS Forecast Chart for TRMNL
 
-A TRMNL private plugin that shows the week's National Weather Service forecast at a glance, styled after the
-[Weather Glance](https://trmnl.com/recipes/weather-glance-181200) recipe. Each day is a "pill" spanning its low to its
-high on a shared temperature scale, shaded by how rough the weather is (darker = rain, snow, storms). Current
-temperature sits on the left with a marker at its spot on the scale and an arrow for the 3-hour trend. Active NWS
-alerts replace the title bar text.
+A TRMNL private plugin that charts the week's National Weather Service forecast for one or more places, stacked
+one above the other. For each location you get:
 
-![Full layout](docs/full.png)
+- the current temperature (measured where possible, see below) and conditions
+- each day's forecast high and low, with an icon
+- an hourly temperature line for the week, a dashed freezing line, and a marker at the current time
+- 6-hour snowfall bars when snow is in the forecast, otherwise liquid precipitation bars, plus daily totals
 
-All four layouts (full, half horizontal, half vertical, quadrant):
+Defaults to Leavenworth, WA and Stevens Pass, WA. Shown on a TRMNL X (1872×1404, 16 grays):
 
-![All layouts](docs/layouts.png)
+![TRMNL X, full screen](docs/x-full.png)
 
-Defaults to Leavenworth, WA (NWS grid `OTX/37,105`), but works for any US location.
+On the original TRMNL (800×480, 1-bit), in full, half horizontal, half vertical and quadrant layouts:
+
+![TRMNL OG layouts](docs/og-layouts.png)
+
+The earlier single-location "Weather Glance" design (day pills shaded by severity) is saved under the git tag
+`glance-v1`:
+
+![Weather Glance](docs/glance-full.png)
 
 ## How it works
 
 ```
-TRMNL ──poll──▶ Go service (AWS Lambda + Function URL) ──▶ api.weather.gov
-                  /points → /forecast + /forecast/hourly + /alerts/active
-                  returns ~2 KB of JSON shaped for the templates
+TRMNL ──poll──▶ Go service (AWS Lambda + Function URL) ──▶ api.weather.gov (+ forecast.weather.gov)
+                  for each location, in parallel:
+                  /points → /forecast + /forecast/hourly + /gridpoints + /alerts/active + observations
+                  returns ~4 KB of JSON per location, shaped for the templates
 ```
 
-The NWS hourly forecast is ~160 KB, over TRMNL's 100 KB polling limit. So a small Go service (`server/`) fetches
-the 12-hour forecast, hourly forecast and alerts in parallel and boils them down to what the Liquid needs. That
-includes precomputed pill positions, icons and severity shades.
+The NWS data is far over TRMNL's 100 KB polling limit: about 160 KB for the hourly forecast and 250 KB for the
+gridpoint data, per location. So a small Go service (`server/`) fetches everything and boils it down to what the
+Liquid needs. The temperature line arrives as a ready-made SVG path, and the bars as heights in percent. The TRMNL
+side just loops over `locations` and draws.
+
+The chart's hourly temperatures, snowfall and precipitation come from the gridpoint data (`temperature`,
+`snowfallAmount`, `quantitativePrecipitation`). The daily highs and lows come from the 12-hour forecast, so they
+match the NWS forecast text.
 
 The current temperature is a measured observation, not the forecast for this hour. It is taken from the first
 source with a reading less than 2 hours old:
@@ -35,19 +48,23 @@ source with a reading less than 2 hours old:
 2. The nearest api.weather.gov observation station with a fresh reading (e.g. KEAT, Wenatchee airport).
 3. The hourly forecast for the current hour.
 
+A station whose elevation differs from the forecast point's by more than 300 m (about 1,000 ft) is skipped. Without
+this, Stevens Pass would show Skykomish's valley reading (SKKW1, 2,028 ft) instead of conditions at about 4,900 ft.
+
 The payload's `now.source` field says which one was used (`LVN11`, `KEAT`, … or `forecast`), and `now.observed_at`
-gives the reading's local time, which is shown above the big temperature.
+gives the reading's local time.
 
 ## Layout
 
 ```
 src/                 TRMNL plugin (trmnlp format)
   settings.yml       polling URL + form fields
-  shared.liquid      styles, icons, and the glance/title bar templates
+  shared.liquid      styles, icons, and the location chart / title bar templates
   full.liquid …      one thin view per size
 server/              Go service
   main.go            Lambda (Function URL) handler or plain HTTP server
-  glance.go          NWS → glance payload (day pairing, severity, scale)
+  glance.go          NWS → per-location payload (days, current conditions)
+  chart.go           gridpoint data → temperature path, snow/precip bars
   nws.go             api.weather.gov client
   template.yaml      AWS SAM template
 .trmnlp.yml          local preview config
@@ -73,10 +90,16 @@ arm64, handler `bootstrap`. Then enable a Function URL with auth type NONE, and 
 Try it:
 
 ```sh
-curl "https://<id>.lambda-url.<region>.on.aws/?lat_lon=47.5962,-120.6615&token=<AccessToken>"
+curl -G "https://<id>.lambda-url.<region>.on.aws/" --data-urlencode "token=<AccessToken>" \
+  --data-urlencode "locations=Leavenworth, WA | 47.5962,-120.6615;Stevens Pass, WA | 47.7448,-121.0890"
 ```
 
-Query parameters: `lat_lon` (required), `units` (`us` or `si`), `name` (location label), `days` (1–7), and `token`.
+Query parameters:
+- `locations`: one to four entries separated by newlines or `;`, each `Name | lat,lon` (the name is optional).
+  Returns `{"locations": [...], "count": n}`. A location that fails comes back as `{"location", "error"}`, and the
+  others still render.
+- `lat_lon` and `name`: a single location instead. Returns one object; this is what `glance-v1` uses.
+- `units` (`us` or `si`), `bars` (`auto`, `snow` or `precip`), `days` (1–7), and `token`.
 
 ## Install the plugin on TRMNL
 
@@ -93,8 +116,10 @@ Or create a Private Plugin by hand: strategy **Polling**, paste the `polling_url
 Then fill in the plugin settings:
 - **Service URL**: the Function URL from above.
 - **Access token**: your `AccessToken`, if you set one.
-- **Location**: defaults to Leavenworth, WA.
+- **Locations**: one per line, as `Name | latitude,longitude`. Two fit best on a full screen. The half and quadrant
+  layouts show the first location, except half vertical, which stacks all of them compactly.
 - **Temperature unit**: Fahrenheit or Celsius.
+- **Chart bars**: Auto (snow when any is forecast, otherwise precipitation), Snowfall, or Precipitation.
 
 ## Develop locally
 
@@ -107,16 +132,3 @@ trmnlp lint
 `trmnlp` warns that TRMNL itself can't poll `localhost`. That's expected for local preview only. Set
 `GLANCE_SERVICE_URL` to preview against your deployed Lambda instead. If Liquid reports "Invalid template encoding",
 run with `LANG=C.UTF-8`.
-
-## Shading
-
-Severity comes from the NWS short forecast text plus precipitation chance:
-
-| Severity | Example                                   | Pill       |
-|---------:|-------------------------------------------|------------|
-| 0        | Sunny, Clear                              | `gray-75`  |
-| 1        | Mostly Sunny, Partly Cloudy               | `gray-70`  |
-| 2        | Mostly Cloudy, Fog, Partly Sunny w/ rain later | `gray-65` |
-| 3        | Chance / Likely Rain Showers              | `gray-60`  |
-| 4        | Rain And Snow Showers Likely              | `gray-55`  |
-| 5        | Thunderstorms, Freezing Rain, Heavy Snow  | `gray-45`  |

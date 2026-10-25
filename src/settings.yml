@@ -12,16 +12,16 @@ polling_verb: get
 framework_version: latest
 # The Go service (../server) calls api.weather.gov and returns a ~2 KB summary;
 # the raw NWS hourly feed is over TRMNL's 100 KB polling limit.
-polling_url: "{{ service_url }}?lat_lon={{ lat_lon }}&units={{ units }}&name={{ location_name | url_encode }}&token={{ access_token | url_encode }}"
+polling_url: "{{ service_url }}?locations={{ locations | url_encode }}&units={{ units }}&bars={{ bars }}&token={{ access_token | url_encode }}"
 polling_headers: ''
-name: NWS Weather Glance
-description: NWS forecast at a glance
+name: NWS Forecast Chart
+description: NWS week chart, multi-location
 refresh_interval: 30
 custom_fields:
 - keyname: about
   field_type: author_bio
   name: About
-  description: Temperature ranges and weather severity for the week ahead, from the US National Weather Service. Darker pills mean rougher weather. Source and setup at <a href="https://github.com/nicpottier/trmnl-nws-weather" class="underline">github.com/nicpottier/trmnl-nws-weather</a>
+  description: A week of US National Weather Service forecasts for one or more places, each as an hourly temperature line over snow or precipitation bars. Source and setup at <a href="https://github.com/nicpottier/trmnl-nws-weather" class="underline">github.com/nicpottier/trmnl-nws-weather</a>
 - keyname: service_url
   field_type: url
   name: Service URL
@@ -32,17 +32,13 @@ custom_fields:
   name: Access token
   description: Must match the service's ACCESS_TOKEN, if you set one.
   optional: true
-- keyname: lat_lon
-  field_type: lat_lon
-  name: Location
-  description: Search for a US city or postal code, or provide a comma-separated lat/long. NWS covers the US and its territories only.
-  default: 47.5962,-120.6615
-- keyname: location_name
-  field_type: string
-  name: Location label
-  description: Shown in the title bar. Leave blank to use the NWS place name.
-  default: Leavenworth, WA
-  optional: true
+- keyname: locations
+  field_type: text
+  name: Locations
+  description: One per line, as <code>Name | latitude,longitude</code>. Up to 4; two fit best on a full screen. NWS covers the US and its territories only.
+  default: |-
+    Leavenworth, WA | 47.5962,-120.6615
+    Stevens Pass, WA | 47.7448,-121.0890
 - keyname: units
   field_type: select
   name: Temperature unit
@@ -50,3 +46,12 @@ custom_fields:
   - Fahrenheit: us
   - Celsius: si
   default: us
+- keyname: bars
+  field_type: select
+  name: Chart bars
+  description: Auto shows snowfall when any is forecast, otherwise liquid precipitation.
+  options:
+  - Auto: auto
+  - Snowfall: snow
+  - Precipitation: precip
+  default: auto
