@@ -22,10 +22,11 @@
   .screen--lg .wx__hero svg { width: 160px; height: 160px; stroke-width: 1.1; }
   .screen--lg .wx__now .value { line-height: 0.85; }
   .wx-screen { --wx-axis: 34px; }
+  .wx__row > .wx__lohi { gap: 12px; }
   .wx__row > .wx__amounts { flex-direction: column; justify-content: flex-start; gap: 0; }
   .wx--compact { flex-direction: column; gap: 2px; }
   .wx--compact .wx__now { flex: none; flex-direction: row; align-items: center; gap: 8px; }
-  .wx--compact .wx__row > * { flex-direction: column; gap: 0; }
+  .wx--compact .wx__row > *, .wx--compact .wx__row > .wx__lohi { flex-direction: column; gap: 0; }
 </style>
 
 {% comment %} Line icons for the condition names the service returns (see server/glance.go). {% endcomment %}
@@ -102,7 +103,7 @@
     {% endif %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
-      <div><span class="value value--xxsmall lg:value--xsmall font--bold">{{ day.hi }}°</span><span class="value value--xxsmall lg:value--xsmall">{{ day.lo }}°</span></div>
+      <div class="wx__lohi"><span class="value value--xxsmall lg:value--xsmall">{{ day.lo }}°</span><span class="value value--xxsmall lg:value--xsmall font--bold">{{ day.hi }}°</span></div>
       {% endfor %}
     </div>
     <div class="wx__body">
