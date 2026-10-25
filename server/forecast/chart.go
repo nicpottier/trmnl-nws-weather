@@ -259,6 +259,10 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 	if mode == "precip" {
 		rainWord = "precip"
 	}
+	flurries, sprinkles := flurriesIn, sprinklesIn
+	if units == "si" {
+		flurries, sprinkles = flurriesCm, sprinklesMm
+	}
 	perDay := 24 / barHours
 	for i := range days {
 		sn, rn := 0.0, 0.0
@@ -275,11 +279,11 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 			c.Rain += roundAmount(rn, "rain", units)
 		}
 		days[i].Amounts = []string{}
-		if days[i].Snow != "" {
-			days[i].Amounts = append(days[i].Amounts, days[i].Snow+" snow")
+		if a := describeAmount(sn, days[i].Snow, "snow", "Flurries", flurries); a != "" {
+			days[i].Amounts = append(days[i].Amounts, a)
 		}
-		if days[i].Rain != "" {
-			days[i].Amounts = append(days[i].Amounts, days[i].Rain+" "+rainWord)
+		if a := describeAmount(rn, days[i].Rain, rainWord, "Sprinkles", sprinkles); a != "" {
+			days[i].Amounts = append(days[i].Amounts, a)
 		}
 	}
 
@@ -382,6 +386,25 @@ func formatAmount(v float64, kind, units string) string {
 		}
 	}
 	return trimAmount(v, kind, units) + unit
+}
+
+// Below these daily amounts a number means little, so the chart says "Flurries" or "Sprinkles".
+const (
+	flurriesIn, sprinklesIn = 0.3, 0.03
+	flurriesCm, sprinklesMm = 0.8, 0.8
+)
+
+// describeAmount is how a day's amount reads under the chart: shown plus word ("0.8″ snow"),
+// light ("Flurries", "Sprinkles") for anything above zero but under limit, or "" for none.
+func describeAmount(v float64, shown, word, light string, limit float64) string {
+	switch {
+	case v <= 0:
+		return ""
+	case v < limit:
+		return light
+	default:
+		return shown + " " + word
+	}
 }
 
 // roundAmount rounds to the precision amounts are shown at: hundredths of an inch of rain,

@@ -421,3 +421,35 @@ func TestTotalsMatchDayLabels(t *testing.T) {
 		t.Errorf("day %q, label %q", days[0].Rain, c.Label)
 	}
 }
+
+func TestLightAmounts(t *testing.T) {
+	for _, tc := range []struct {
+		v     float64
+		kind  string
+		units string
+		want  string
+	}{
+		{0, "rain", "us", ""},
+		{0.002, "rain", "us", "Sprinkles"}, // a trace too small to show as a number
+		{0.02, "rain", "us", "Sprinkles"},
+		{0.03, "rain", "us", "0.03″ rain"},
+		{0.1, "snow", "us", "Flurries"},
+		{0.3, "snow", "us", "0.3″ snow"},
+		{0.5, "rain", "si", "Sprinkles"},
+		{2, "rain", "si", "2.0mm rain"},
+		{0.5, "snow", "si", "Flurries"},
+	} {
+		light, limit := "Sprinkles", sprinklesIn
+		switch {
+		case tc.kind == "snow" && tc.units == "si":
+			light, limit = "Flurries", flurriesCm
+		case tc.kind == "snow":
+			light, limit = "Flurries", flurriesIn
+		case tc.units == "si":
+			limit = sprinklesMm
+		}
+		if got := describeAmount(tc.v, formatAmount(tc.v, tc.kind, tc.units), tc.kind, light, limit); got != tc.want {
+			t.Errorf("%v %s (%s) = %q, want %q", tc.v, tc.kind, tc.units, got, tc.want)
+		}
+	}
+}
