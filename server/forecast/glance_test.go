@@ -292,12 +292,13 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	}
 	days := make([]Day, 3)
 
-	// auto: rain buckets as rain bars, snow buckets as snow bars, each on its own scale.
+	// auto: rain buckets as rain bars, snow buckets as snow bars, on fixed scales
+	// (full height = 0.4″ of rain or 4″ of snow per 6 hours; heavier is clipped).
 	c := buildChart(&grid, days, loc, now, "us", "auto")
 	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
-	want := map[int]Bar{3: {100, "rain", "gray-55"}, 6: {50, "snow", "gray-35"}, 7: {50, "snow", "gray-35"}}
+	want := map[int]Bar{3: {100, "rain", "gray-55"}, 6: {25, "snow", "gray-35"}, 7: {25, "snow", "gray-35"}}
 	for i, b := range c.Bars {
 		if b != want[i] {
 			t.Errorf("bar %d = %+v, want %+v", i, b, want[i])
@@ -318,10 +319,10 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 		t.Errorf("snow-only chart = %+v, days %+v", c, days)
 	}
 
-	// precip: all liquid, snow included as water (0.2″), against one rain scale.
+	// precip: all liquid, snow included as water (0.1″ per bucket), on the rain scale.
 	days = make([]Day, 3)
 	c = buildChart(&grid, days, loc, now, "us", "precip")
-	if c.Bars[3].Height != 100 || c.Bars[6] != (Bar{20, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
+	if c.Bars[3].Height != 100 || c.Bars[6] != (Bar{25, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
 		!reflect.DeepEqual(days[1].Amounts, []string{"0.20″ precip"}) {
 		t.Errorf("precip chart = %+v, days %+v", c, days)
 	}

@@ -186,20 +186,28 @@ type Bar struct {
 
 var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
 
+// What a full-height bar means, per 6 hours. These never change, so the bars read the same on
+// every screen and every day. Snow and rain use the usual 10:1 snow-to-water ratio, so equal
+// heights hold about the same amount of water; anything heavier is drawn at full height.
+const (
+	snowFullIn, rainFullIn = 4.0, 0.4 // heavy snow, heavy rain
+	snowFullCm, rainFullMm = 10.0, 10.0
+)
+
 // fillBars buckets snowfall and precipitation into 6-hour bars and per-day totals.
 //
 // In "auto" mode a bucket with any snow is a snow bar (in inches of snow) and any other wet
-// bucket is a rain bar (inches of liquid), each against its own scale, so a mountain pass
+// bucket is a rain bar (inches of liquid), each on its fixed scale, so a mountain pass
 // shows both its rain days and its snow days. "snow" shows only snowfall, and "precip" shows
 // all liquid precipitation (snow included, as water) as rain bars.
 func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units, mode string) {
 	snowIvs := grid.Properties.SnowfallAmount.intervals()
 	precipIvs := grid.Properties.QuantitativePrecipitation.intervals()
 	snowConv, rainConv := 1/25.4, 1/25.4 // mm -> in
-	snowFloor, rainFloor := 2.0, 0.25    // smallest amounts a full-height bar stands for
+	snowFull, rainFull := snowFullIn, rainFullIn
 	if units == "si" {
 		snowConv, rainConv = 0.1, 1 // mm -> cm, mm
-		snowFloor, rainFloor = 5, 6
+		snowFull, rainFull = snowFullCm, rainFullMm
 	}
 	if mode != "snow" && mode != "precip" {
 		mode = "auto"
@@ -208,7 +216,7 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 
 	type bucket struct{ snow, rain float64 }
 	buckets := []bucket{}
-	snowMax, rainMax := 0.0, 0.0
+	anyAmount := false
 	for t := start; t.Before(end); t = t.Add(barHours * time.Hour) {
 		next := t.Add(barHours * time.Hour)
 		sn := amountBetween(snowIvs, t, next) * snowConv
@@ -225,23 +233,23 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 			b.rain = pr
 		}
 		buckets = append(buckets, b)
-		snowMax, rainMax = math.Max(snowMax, b.snow), math.Max(rainMax, b.rain)
+		anyAmount = anyAmount || b.snow > 0 || b.rain > 0
 	}
 
-	snowScale, rainScale := math.Max(snowMax, snowFloor), math.Max(rainMax, rainFloor)
+	height := func(amount, full float64) float64 { return math.Min(100, math.Round(amount/full*1000)/10) }
 	for _, b := range buckets {
 		bar := Bar{}
 		switch {
 		case b.snow > 0:
-			bar = Bar{math.Round(b.snow/snowScale*1000) / 10, "snow", barShades["snow"]}
+			bar = Bar{height(b.snow, snowFull), "snow", barShades["snow"]}
 		case b.rain > 0:
-			bar = Bar{math.Round(b.rain/rainScale*1000) / 10, "rain", barShades["rain"]}
+			bar = Bar{height(b.rain, rainFull), "rain", barShades["rain"]}
 		}
 		c.Bars = append(c.Bars, bar)
 		c.Snow += b.snow
 		c.Rain += b.rain
 	}
-	c.HasAmount = snowMax > 0 || rainMax > 0
+	c.HasAmount = anyAmount
 
 	rainWord := "rain"
 	if mode == "precip" {
