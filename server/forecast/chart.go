@@ -112,25 +112,21 @@ func minTime(a, b time.Time) time.Time {
 // Chart is drawn in two layers: an SVG temperature line in a 1000x100 viewBox stretched over the
 // chart area, and HTML bars (so the Framework can dither their shading on 1-bit screens).
 type Chart struct {
-	TempPath  string    `json:"temp_path"`    // SVG path, viewBox 0 0 1000 100
-	FreezeY   *float64  `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
-	NowX      float64   `json:"now_x"`        // x of the current time, 0-1000
-	NowPct    float64   `json:"now_pct"`      // the same, as a percentage
-	NowY      *float64  `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
-	TempMax   int       `json:"temp_max"`     // temperature at the top of the chart
-	TempMin   int       `json:"temp_min"`     // temperature at the bottom
-	BarKind   string    `json:"bar_kind"`     // "snow" or "precip"
-	BarUnit   string    `json:"bar_unit"`     // ″ or cm or mm
-	BarMax    string    `json:"bar_max"`      // amount a full-height bar represents
-	Bars      []float64 `json:"bars"`         // one per 6 hours, 0-100 % of the chart height
-	BarShade  string    `json:"bar_shade"`    // Framework bg-- shade for the bars
-	HasAmount bool      `json:"has_amount"`   // any snow/precip at all in the window
-	Days      int       `json:"days"`         // columns in the chart
-	Snow      float64   `json:"snow_total"`   // total snow over the window, display units
-	Precip    float64   `json:"precip_total"` // total liquid precipitation, display units
-	Label     string    `json:"label"`        // e.g. "Snow 2.3″"
-	Legend    string    `json:"legend"`       // e.g. "Snow (6 hr)"
-	Freeze    string    `json:"freeze_label"` // "32°" or "0°"
+	TempPath  string   `json:"temp_path"`    // SVG path, viewBox 0 0 1000 100
+	FreezeY   *float64 `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
+	NowX      float64  `json:"now_x"`        // x of the current time, 0-1000
+	NowPct    float64  `json:"now_pct"`      // the same, as a percentage
+	NowY      *float64 `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
+	TempMax   int      `json:"temp_max"`     // temperature at the top of the chart
+	TempMin   int      `json:"temp_min"`     // temperature at the bottom
+	BarKind   string   `json:"bar_kind"`     // "auto", "snow" or "precip"
+	Bars      []Bar    `json:"bars"`         // one per 6 hours
+	HasAmount bool     `json:"has_amount"`   // any snow/rain at all in the window
+	Days      int      `json:"days"`         // columns in the chart
+	Snow      float64  `json:"snow_total"`   // total snowfall over the window, display units
+	Rain      float64  `json:"rain_total"`   // total rain (or all precip, in "precip" mode)
+	Label     string   `json:"label"`        // e.g. "Snow 1.8″ · Rain 0.25″"
+	Freeze    string   `json:"freeze_label"` // "32°" or "0°"
 
 	samples []sample // hourly temperatures in display units, kept so the scale can be changed
 	freeze  float64  // 32 or 0, in display units
@@ -152,7 +148,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 	span := float64(end.Sub(start))
 	xOf := func(t time.Time) float64 { return float64(t.Sub(start)) / span * 1000 }
 
-	c := &Chart{Days: n, BarUnit: "″", Freeze: "32°"}
+	c := &Chart{Days: n, Freeze: "32°"}
 	c.NowX = math.Round(xOf(now)*10) / 10
 	c.NowPct = c.NowX / 10
 
@@ -177,69 +173,108 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 		c.setScale(lo, hi)
 	}
 
-	// Snow and precipitation: per-day totals and 6-hour bars.
-	snow := grid.Properties.SnowfallAmount.intervals()
-	precip := grid.Properties.QuantitativePrecipitation.intervals()
-	snowConv, precipConv := 1/25.4, 1/25.4 // mm -> in
-	if units == "si" {
-		snowConv, precipConv = 0.1, 1 // mm -> cm, mm
-	}
-	for i := range days {
-		from := start.AddDate(0, 0, i)
-		to := from.AddDate(0, 0, 1)
-		s := amountBetween(snow, from, to) * snowConv
-		p := amountBetween(precip, from, to) * precipConv
-		c.Snow += s
-		c.Precip += p
-		days[i].Snow = formatAmount(s, "snow", units)
-		days[i].Precip = formatAmount(p, "precip", units)
-	}
-
-	kind := barMode
-	if kind != "snow" && kind != "precip" {
-		kind = "precip"
-		if c.Snow >= 0.05 {
-			kind = "snow"
-		}
-	}
-	c.BarKind = kind
-	series, conv, floor := precip, precipConv, 0.25 // a full bar is at least 0.25″ of rain
-	c.BarShade, c.Legend = "gray-55", "Precip"
-	if kind == "snow" {
-		series, conv, floor = snow, snowConv, 2.0 // ... or 2″ of snow
-		c.BarShade, c.Legend = "gray-35", "Snow"
-	}
-	if units == "si" {
-		c.BarUnit = "mm"
-		floor *= 25.4
-		if kind == "snow" {
-			c.BarUnit, floor = "cm", 5
-		}
-	}
-
-	amounts := []float64{}
-	maxAmount := 0.0
-	for t := start; t.Before(end); t = t.Add(barHours * time.Hour) {
-		a := amountBetween(series, t, t.Add(barHours*time.Hour)) * conv
-		amounts = append(amounts, a)
-		maxAmount = math.Max(maxAmount, a)
-	}
-	scale := math.Max(maxAmount, floor)
-	for _, a := range amounts {
-		c.Bars = append(c.Bars, math.Round(a/scale*1000)/10)
-	}
-	c.BarMax = trimAmount(scale, kind, units) + c.BarUnit
-	c.HasAmount = maxAmount > 0
-
-	total := c.Precip
-	if kind == "snow" {
-		total = c.Snow
-	}
-	c.Label = fmt.Sprintf("%s %s%s", c.Legend, trimAmount(total, kind, units), c.BarUnit)
-	if !c.HasAmount {
-		c.Label = "No " + strings.ToLower(c.Legend)
-	}
+	c.fillBars(grid, days, start, end, units, barMode)
 	return c
+}
+
+// Bar is one 6-hour bucket of the chart.
+type Bar struct {
+	Height float64 `json:"h"`     // 0-100 % of the chart height, against its kind's scale
+	Kind   string  `json:"kind"`  // "snow", "rain", or "" for none
+	Shade  string  `json:"shade"` // Framework bg-- shade
+}
+
+var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
+
+// fillBars buckets snowfall and precipitation into 6-hour bars and per-day totals.
+//
+// In "auto" mode a bucket with any snow is a snow bar (in inches of snow) and any other wet
+// bucket is a rain bar (inches of liquid), each against its own scale, so a mountain pass
+// shows both its rain days and its snow days. "snow" shows only snowfall, and "precip" shows
+// all liquid precipitation (snow included, as water) as rain bars.
+func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units, mode string) {
+	snowIvs := grid.Properties.SnowfallAmount.intervals()
+	precipIvs := grid.Properties.QuantitativePrecipitation.intervals()
+	snowConv, rainConv := 1/25.4, 1/25.4 // mm -> in
+	snowFloor, rainFloor := 2.0, 0.25    // smallest amounts a full-height bar stands for
+	if units == "si" {
+		snowConv, rainConv = 0.1, 1 // mm -> cm, mm
+		snowFloor, rainFloor = 5, 6
+	}
+	if mode != "snow" && mode != "precip" {
+		mode = "auto"
+	}
+	c.BarKind = mode
+
+	type bucket struct{ snow, rain float64 }
+	buckets := []bucket{}
+	snowMax, rainMax := 0.0, 0.0
+	for t := start; t.Before(end); t = t.Add(barHours * time.Hour) {
+		next := t.Add(barHours * time.Hour)
+		sn := amountBetween(snowIvs, t, next) * snowConv
+		pr := amountBetween(precipIvs, t, next) * rainConv
+		b := bucket{}
+		switch {
+		case mode == "precip":
+			b.rain = pr
+		case mode == "snow":
+			b.snow = sn
+		case sn >= 0.01: // auto: any measurable snow makes it a snow bucket
+			b.snow = sn
+		default:
+			b.rain = pr
+		}
+		buckets = append(buckets, b)
+		snowMax, rainMax = math.Max(snowMax, b.snow), math.Max(rainMax, b.rain)
+	}
+
+	snowScale, rainScale := math.Max(snowMax, snowFloor), math.Max(rainMax, rainFloor)
+	for _, b := range buckets {
+		bar := Bar{}
+		switch {
+		case b.snow > 0:
+			bar = Bar{math.Round(b.snow/snowScale*1000) / 10, "snow", barShades["snow"]}
+		case b.rain > 0:
+			bar = Bar{math.Round(b.rain/rainScale*1000) / 10, "rain", barShades["rain"]}
+		}
+		c.Bars = append(c.Bars, bar)
+		c.Snow += b.snow
+		c.Rain += b.rain
+	}
+	c.HasAmount = snowMax > 0 || rainMax > 0
+
+	rainWord := "rain"
+	if mode == "precip" {
+		rainWord = "precip"
+	}
+	perDay := 24 / barHours
+	for i := range days {
+		sn, rn := 0.0, 0.0
+		for _, b := range buckets[min(i*perDay, len(buckets)):min((i+1)*perDay, len(buckets))] {
+			sn, rn = sn+b.snow, rn+b.rain
+		}
+		days[i].Snow = formatAmount(sn, "snow", units)
+		days[i].Rain = formatAmount(rn, "rain", units)
+		days[i].Amounts = []string{}
+		if days[i].Snow != "" {
+			days[i].Amounts = append(days[i].Amounts, days[i].Snow+" snow")
+		}
+		if days[i].Rain != "" {
+			days[i].Amounts = append(days[i].Amounts, days[i].Rain+" "+rainWord)
+		}
+	}
+
+	parts := []string{}
+	if s := formatAmount(c.Snow, "snow", units); s != "" {
+		parts = append(parts, "Snow "+s)
+	}
+	if r := formatAmount(c.Rain, "rain", units); r != "" {
+		parts = append(parts, strings.ToUpper(rainWord[:1])+rainWord[1:]+" "+r)
+	}
+	c.Label = strings.Join(parts, " · ")
+	if c.Label == "" {
+		c.Label = "No precipitation"
+	}
 }
 
 // tempRange returns the chart's temperature extremes, rounded out to a multiple of 5 so the
@@ -316,14 +351,14 @@ func formatAmount(v float64, kind, units string) string {
 	switch {
 	case kind == "snow" && units != "si" && v < 0.05,
 		kind == "snow" && units == "si" && v < 0.1,
-		kind == "precip" && units != "si" && v < 0.005,
-		kind == "precip" && units == "si" && v < 0.1:
+		kind == "rain" && units != "si" && v < 0.005,
+		kind == "rain" && units == "si" && v < 0.1:
 		return ""
 	}
 	unit := "″"
 	if units == "si" {
 		unit = "cm"
-		if kind == "precip" {
+		if kind == "rain" {
 			unit = "mm"
 		}
 	}
@@ -331,7 +366,7 @@ func formatAmount(v float64, kind, units string) string {
 }
 
 func trimAmount(v float64, kind, units string) string {
-	if kind == "precip" && units != "si" {
+	if kind == "rain" && units != "si" {
 		return strconv.FormatFloat(math.Round(v*100)/100, 'f', 2, 64)
 	}
 	return strconv.FormatFloat(math.Round(v*10)/10, 'f', 1, 64)

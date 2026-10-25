@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -141,13 +142,13 @@ func TestBuildGlanceMorning(t *testing.T) {
 			t.Errorf("%s pill out of range: top %v height %v", d.Label, d.TopPct, d.HeightPct)
 		}
 	}
-	// Leavenworth's grid has rain but no snow, so the chart falls back to precipitation bars.
+	// Leavenworth's grid has rain but no snow, so every bar is a rain bar.
 	c := g.Chart
-	if c == nil || c.BarKind != "precip" || len(c.Bars) != 28 || c.Days != 7 || c.TempPath == "" || c.FreezeY == nil {
+	if c == nil || c.BarKind != "auto" || len(c.Bars) != 28 || c.Days != 7 || c.TempPath == "" || c.FreezeY == nil {
 		t.Fatalf("chart = %+v", c)
 	}
-	if g.Days[1].Precip != "0.16″" || g.Days[0].Precip != "" || g.Days[1].Snow != "" {
-		t.Errorf("Monday precip/snow = %q/%q", g.Days[1].Precip, g.Days[1].Snow)
+	if g.Days[1].Rain != "0.16″" || g.Days[0].Rain != "" || g.Days[1].Snow != "" || c.Label != "Rain 0.36″" {
+		t.Errorf("Monday rain/snow = %q/%q, label %q", g.Days[1].Rain, g.Days[1].Snow, c.Label)
 	}
 	if c.NowPct < 4 || c.NowPct > 5 { // 7:45 AM on day 1 of 7
 		t.Errorf("now_pct = %v", c.NowPct)
@@ -272,46 +273,64 @@ func TestParseInterval(t *testing.T) {
 	}
 }
 
-func TestBuildChartSnow(t *testing.T) {
+func TestBuildChartRainAndSnow(t *testing.T) {
 	loc, _ := time.LoadLocation("America/Los_Angeles")
 	now := time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC) // 8 AM PDT
 	var grid GridData
-	// 0°C and 5°C alternating every 12h from local midnight; 50.8 mm (2") of snow over 12h on day 2,
-	// starting at local noon (19:00Z).
+	// Temperatures 0°C, 5°C, -5°C in 12h steps from local midnight. Day 1, 6 pm-midnight local:
+	// 12.7 mm (0.5") of rain. Day 2, noon-midnight local: 50.8 mm (2") of snow from 5.08 mm of water.
 	if err := json.Unmarshal([]byte(`{"properties":{
 		"temperature":{"values":[
 			{"validTime":"2026-10-25T07:00:00+00:00/PT12H","value":0},
 			{"validTime":"2026-10-25T19:00:00+00:00/PT12H","value":5},
 			{"validTime":"2026-10-26T07:00:00+00:00/PT12H","value":-5}]},
 		"snowfallAmount":{"values":[{"validTime":"2026-10-26T19:00:00+00:00/PT12H","value":50.8}]},
-		"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T19:00:00+00:00/PT12H","value":5.08}]}}}`), &grid); err != nil {
+		"quantitativePrecipitation":{"values":[
+			{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":12.7},
+			{"validTime":"2026-10-26T19:00:00+00:00/PT12H","value":5.08}]}}}`), &grid); err != nil {
 		t.Fatal(err)
 	}
 	days := make([]Day, 3)
 
+	// auto: rain buckets as rain bars, snow buckets as snow bars, each on its own scale.
 	c := buildChart(&grid, days, loc, now, "us", "auto")
-	if c.BarKind != "snow" || c.BarUnit != "″" || len(c.Bars) != 12 {
+	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
-	// Day 2 noon-midnight local is bars 6 and 7 (6-hour buckets), 1" each against a 2" full scale.
-	if c.Bars[6] != 50 || c.Bars[7] != 50 || c.Bars[5] != 0 || c.Bars[8] != 0 {
-		t.Errorf("bars = %v", c.Bars)
+	want := map[int]Bar{3: {100, "rain", "gray-55"}, 6: {50, "snow", "gray-35"}, 7: {50, "snow", "gray-35"}}
+	for i, b := range c.Bars {
+		if b != want[i] {
+			t.Errorf("bar %d = %+v, want %+v", i, b, want[i])
+		}
 	}
-	if days[1].Snow != "2.0″" || days[1].Precip != "0.20″" || days[0].Snow != "" {
-		t.Errorf("days = %+v", days)
+	if !reflect.DeepEqual(days[0].Amounts, []string{"0.50″ rain"}) || !reflect.DeepEqual(days[1].Amounts, []string{"2.0″ snow"}) ||
+		len(days[2].Amounts) != 0 {
+		t.Errorf("amounts = %q / %q / %q", days[0].Amounts, days[1].Amounts, days[2].Amounts)
 	}
-	if c.TempMin != 20 || c.TempMax != 45 || c.FreezeY == nil || c.Label != "Snow 2.0″" {
+	if c.TempMin != 20 || c.TempMax != 45 || c.FreezeY == nil || c.Label != "Snow 2.0″ · Rain 0.50″" {
 		t.Errorf("scale %d-%d freeze %v label %q", c.TempMin, c.TempMax, c.FreezeY, c.Label)
 	}
 
-	c = buildChart(&grid, make([]Day, 3), loc, now, "us", "precip")
-	if c.BarKind != "precip" || c.BarMax != "0.25″" || c.Bars[6] != 40 {
-		t.Errorf("forced precip chart = %+v", c)
+	// snow: snowfall only.
+	days = make([]Day, 3)
+	c = buildChart(&grid, days, loc, now, "us", "snow")
+	if c.Bars[3] != (Bar{}) || c.Bars[6].Kind != "snow" || len(days[0].Amounts) != 0 || c.Label != "Snow 2.0″" {
+		t.Errorf("snow-only chart = %+v, days %+v", c, days)
 	}
 
-	c = buildChart(&grid, make([]Day, 3), loc, now, "si", "auto")
-	if c.BarUnit != "cm" || c.TempMin != -10 || c.Freeze != "0°" || c.Label != "Snow 5.1cm" {
-		t.Errorf("metric chart = %+v", c)
+	// precip: all liquid, snow included as water (0.2″), against one rain scale.
+	days = make([]Day, 3)
+	c = buildChart(&grid, days, loc, now, "us", "precip")
+	if c.Bars[3].Height != 100 || c.Bars[6] != (Bar{20, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
+		!reflect.DeepEqual(days[1].Amounts, []string{"0.20″ precip"}) {
+		t.Errorf("precip chart = %+v, days %+v", c, days)
+	}
+
+	days = make([]Day, 3)
+	c = buildChart(&grid, days, loc, now, "si", "auto")
+	if c.TempMin != -10 || c.Freeze != "0°" || c.Label != "Snow 5.1cm · Rain 12.7mm" ||
+		!reflect.DeepEqual(days[0].Amounts, []string{"12.7mm rain"}) {
+		t.Errorf("metric chart label %q, days %+v", c.Label, days)
 	}
 }
 

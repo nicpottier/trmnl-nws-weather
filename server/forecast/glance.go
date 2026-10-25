@@ -39,21 +39,22 @@ type Now struct {
 }
 
 type Day struct {
-	Dow       string  `json:"dow"`
-	Date      int     `json:"date"`
-	Label     string  `json:"label"`
-	Name      string  `json:"name"`
-	Hi        int     `json:"hi"`
-	Lo        int     `json:"lo"`
-	Pop       int     `json:"pop"`
-	Short     string  `json:"short"`
-	Icon      string  `json:"icon"`
-	Severity  int     `json:"severity"`
-	Shade     string  `json:"shade"`
-	TopPct    float64 `json:"top_pct"`
-	HeightPct float64 `json:"height_pct"`
-	Snow      string  `json:"snow"`   // forecast snowfall for the day, e.g. "1.0″", or ""
-	Precip    string  `json:"precip"` // forecast liquid precipitation, e.g. "0.19″", or ""
+	Dow       string   `json:"dow"`
+	Date      int      `json:"date"`
+	Label     string   `json:"label"`
+	Name      string   `json:"name"`
+	Hi        int      `json:"hi"`
+	Lo        int      `json:"lo"`
+	Pop       int      `json:"pop"`
+	Short     string   `json:"short"`
+	Icon      string   `json:"icon"`
+	Severity  int      `json:"severity"`
+	Shade     string   `json:"shade"`
+	TopPct    float64  `json:"top_pct"`
+	HeightPct float64  `json:"height_pct"`
+	Snow      string   `json:"snow"`    // forecast snowfall for the day, e.g. "0.8″", or ""
+	Rain      string   `json:"rain"`    // forecast rain for the day, e.g. "0.13″", or ""
+	Amounts   []string `json:"amounts"` // what the chart lists under the day, e.g. ["0.8″ snow", "0.13″ rain"]
 }
 
 type Scale struct {

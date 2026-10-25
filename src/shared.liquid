@@ -22,6 +22,7 @@
   .screen--lg .wx__hero svg { width: 160px; height: 160px; stroke-width: 1.1; }
   .screen--lg .wx__now .value { line-height: 0.85; }
   .wx-screen { --wx-axis: 34px; }
+  .wx__row > .wx__amounts { flex-direction: column; justify-content: flex-start; gap: 0; }
   .wx--compact { flex-direction: column; gap: 2px; }
   .wx--compact .wx__now { flex: none; flex-direction: row; align-items: center; gap: 8px; }
   .wx--compact .wx__row > * { flex-direction: column; gap: 0; }
@@ -59,8 +60,8 @@
 
 {% comment %}
   One location: current conditions on the left; on the right a week-long chart with the hourly
-  temperature line (and freezing line) over 6-hour snow or precipitation bars, daily highs/lows
-  above it and daily totals below. Positions and paths come precomputed from the service.
+  temperature line (and freezing line) over 6-hour snow and rain bars, daily highs/lows above
+  it, and each day's snow/rain amounts and chance of precipitation below. Positions and paths come precomputed from the service.
   Params: loc (one entry of locations), compact (true for the small layouts),
   show_dates (the day names; stacked locations share them, so only the first shows them).
 {% endcomment %}
@@ -112,7 +113,7 @@
       </div>
       <div class="wx__plot">
         <div class="wx__bars">
-          {% for bar in chart.bars %}<div class="bg--{{ chart.bar_shade }}" style="height: {{ bar }}%;"></div>{% endfor %}
+          {% for bar in chart.bars %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}
         </div>
         <div class="wx__past bg--gray-75" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
@@ -130,7 +131,10 @@
     {% unless compact %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
-      <div><span class="label label--small">{% if chart.bar_kind == "snow" %}{{ day.snow }}{% else %}{{ day.precip }}{% endif %}</span></div>
+      <div class="wx__amounts">
+        {% for amount in day.amounts %}<span class="label label--small">{{ amount }}</span>{% endfor %}
+        {% if day.pop >= 10 %}<span class="label label--small label--gray 1bit:text--black">{{ day.pop }}%</span>{% endif %}
+      </div>
       {% endfor %}
     </div>
     {% endunless %}
