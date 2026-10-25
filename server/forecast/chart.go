@@ -188,10 +188,12 @@ var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
 
 // What a full-height bar means, per 6 hours. These never change, so the bars read the same on
 // every screen and every day. Snow and rain use the usual 10:1 snow-to-water ratio, so equal
-// heights hold about the same amount of water; anything heavier is drawn at full height.
+// heights hold about the same amount of water. Heights follow the square root of the amount,
+// so everyday snow and rain stay visible while a 24″ dump still fits: 1″ of snow (or 0.1″ of
+// rain) is a fifth of the height, 6″ (0.6″) is half, and 24″ (2.4″) or more is full.
 const (
-	snowFullIn, rainFullIn = 4.0, 0.4 // heavy snow, heavy rain
-	snowFullCm, rainFullMm = 10.0, 10.0
+	snowFullIn, rainFullIn = 24.0, 2.4
+	snowFullCm, rainFullMm = 60.0, 60.0
 )
 
 // fillBars buckets snowfall and precipitation into 6-hour bars and per-day totals.
@@ -236,7 +238,9 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 		anyAmount = anyAmount || b.snow > 0 || b.rain > 0
 	}
 
-	height := func(amount, full float64) float64 { return math.Min(100, math.Round(amount/full*1000)/10) }
+	height := func(amount, full float64) float64 {
+		return math.Round(math.Sqrt(math.Min(amount/full, 1))*1000) / 10
+	}
 	for _, b := range buckets {
 		bar := Bar{}
 		switch {
