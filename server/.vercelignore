@@ -1,0 +1,3 @@
+dist/
+.aws-sam/
+forecast/testdata/

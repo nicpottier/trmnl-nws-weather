@@ -1,4 +1,4 @@
-package main
+package forecast
 
 import (
 	"context"
@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/aws/aws-lambda-go/events"
 )
 
 func TestClassify(t *testing.T) {
@@ -234,26 +232,26 @@ func TestParseRequest(t *testing.T) {
 	}
 }
 
-func TestLambdaHandler(t *testing.T) {
+func TestHandler(t *testing.T) {
 	srv := fakeNWS(t, 0)
 	oldNWS, oldForecast := nwsBase, forecastBase
 	nwsBase, forecastBase = srv.URL, srv.URL
 	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
 
-	resp, err := lambdaHandler(context.Background(), events.LambdaFunctionURLRequest{
-		QueryStringParameters: map[string]string{"lat_lon": "47.5962,-120.6615", "name": "Home"},
-	})
-	if err != nil || resp.StatusCode != 200 || resp.Headers["Content-Type"] != "application/json" {
-		t.Fatalf("resp = %+v, %v", resp, err)
+	rec := httptest.NewRecorder()
+	Handler(rec, httptest.NewRequest("GET", "/?lat_lon=47.5962,-120.6615&name=Home", nil))
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("status %d, headers %v", rec.Code, rec.Header())
 	}
 	var g Glance
-	if err := json.Unmarshal([]byte(resp.Body), &g); err != nil || g.Location != "Home" || len(g.Days) == 0 {
-		t.Errorf("body = %s", resp.Body)
+	if err := json.Unmarshal(rec.Body.Bytes(), &g); err != nil || g.Location != "Home" || len(g.Days) == 0 {
+		t.Errorf("body = %s", rec.Body)
 	}
 
-	resp, _ = lambdaHandler(context.Background(), events.LambdaFunctionURLRequest{})
-	if resp.StatusCode != 400 {
-		t.Errorf("missing lat_lon status = %d", resp.StatusCode)
+	rec = httptest.NewRecorder()
+	Handler(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Code != 400 {
+		t.Errorf("missing lat_lon status = %d", rec.Code)
 	}
 }
 
@@ -342,7 +340,7 @@ func TestServeMultipleLocations(t *testing.T) {
 	nwsBase, forecastBase = srv.URL, srv.URL
 	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
 
-	status, body := serve(context.Background(), url.Values{"locations": {"Leavenworth, WA | 47.5962,-120.6615\nUp the hill | 47.7448,-121.0890"}})
+	status, body := Serve(context.Background(), url.Values{"locations": {"Leavenworth, WA | 47.5962,-120.6615\nUp the hill | 47.7448,-121.0890"}})
 	var resp struct {
 		Count     int      `json:"count"`
 		Locations []Glance `json:"locations"`

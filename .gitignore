@@ -2,3 +2,4 @@ _build/
 report/
 server/dist/
 server/.aws-sam/
+server/.vercel/
