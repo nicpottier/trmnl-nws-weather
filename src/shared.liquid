@@ -18,20 +18,16 @@
   .wx__bars > div { flex: 1 1 0; }
   .wx__plot svg { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; overflow: visible; }
   .wx__icon { display: block; flex: none; }
-  .wx__hero svg { width: 44px; height: 44px; }
-  .screen--lg .wx__hero svg { width: 160px; height: 160px; stroke-width: 1.1; }
   .screen--lg .wx__now .value { line-height: 0.85; }
   .wx-screen { --wx-axis: 34px; }
-  .wx__left { display: flex; flex-direction: column; justify-content: center; gap: 6px; height: 100%; }
+  .wx__left { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 6px; height: 100%; }
   .screen--lg .wx__left { gap: 10px; }
-  .wx__left--b, .wx__left--c { align-items: center; text-align: center; }
-  .wx__row-c { display: flex; align-items: center; gap: 10px; }
-  .wx__stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .wx__ic svg { width: 36px; height: 36px; display: block; }
-  .screen--lg .wx__ic svg { width: 90px; height: 90px; stroke-width: 1.4; }
-  .wx__ic--xl svg { width: 44px; height: 44px; }
+  .wx__ic--xl svg { width: 44px; height: 44px; display: block; }
   .screen--lg .wx__ic--xl svg { width: 120px; height: 120px; stroke-width: 1.2; }
-  .wx__facts { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 2px; border-top: 2px solid currentColor; padding-top: 6px; }
+  /* The high and low sit beside the current temperature, high level with its top, low with its bottom. */
+  .wx__temps { display: flex; align-items: stretch; gap: 10px; }
+  .wx__hilo { display: flex; flex-direction: column; justify-content: space-between; padding: 9px 0 8px; }
+  .screen--lg .wx__hilo { padding: 3px 0; }
   .wx__row > .wx__lohi { gap: 12px; }
   .wx__row > .wx__amounts { flex-direction: column; justify-content: flex-start; gap: 0; }
   .wx--compact { flex-direction: column; gap: 2px; }
@@ -73,8 +69,7 @@
   One location: current conditions on the left; on the right a week-long chart with the hourly
   temperature line (and freezing line) over 6-hour snow and rain bars, daily highs/lows above
   it, and each day's snow/rain amounts below. Positions and paths come precomputed from the service.
-  Params: loc (one entry of locations), compact (true for the small layouts), left (layout of the
-  current-conditions column: a, b, c, d, or blank for the original),
+  Params: loc (one entry of locations), compact (true for the small layouts),
   show_dates (the day names; stacked locations share them, so only the first shows them).
 {% endcomment %}
 {% template wx_location %}
@@ -95,35 +90,12 @@
   {% assign today = loc.days.first %}
   {% capture amounts %}{{ today.amounts | join: " · " }}{% endcapture %}
   {% capture alert %}{% if loc.alerts.size > 0 %}<span class="label label--small label--inverted" data-clamp="1">{{ loc.alerts.first.event }}</span>{% endif %}{% endcapture %}
-  {% case left %}
-  {% when 'a' %}
-    <div class="wx__left wx__left--a">
-      <span class="title title--small lg:title--base" data-clamp="1">{{ loc.location }}</span>
-      <div class="wx__row-c">
-        <div class="wx__ic">{% render "wx_icon", name: loc.now.icon, size: 64 %}</div>
-        <span class="value value--large lg:value--xxlarge value--tnums">{{ loc.now.temp }}°</span>
-      </div>
-      <span class="label label--small lg:label--base" data-clamp="1">{{ loc.now.short }}</span>
-      <div class="wx__row-c"><span class="label label--small lg:label--base">L {{ today.lo }}°</span><span class="label label--small lg:label--base font--bold">H {{ today.hi }}°</span></div>
-      {% if amounts != "" %}<span class="label label--small lg:label--base" data-clamp="1">{{ amounts }}</span>{% endif %}
-      {{ alert }}
-    </div>
-  {% when 'b' %}
-    <div class="wx__left wx__left--b">
+    <div class="wx__left">
       <div class="wx__ic wx__ic--xl">{% render "wx_icon", name: loc.now.icon, size: 64 %}</div>
       <span class="title title--small lg:title--base" data-clamp="1">{{ loc.location }}</span>
-      <span class="value value--large lg:value--xxlarge value--tnums">{{ loc.now.temp }}°</span>
-      <div class="wx__row-c"><span class="label label--small lg:label--base">{{ today.lo }}°</span><span class="label label--small lg:label--base">/</span><span class="label label--small lg:label--base font--bold">{{ today.hi }}°</span></div>
-      <span class="label label--small lg:label--base" data-clamp="1">{{ loc.now.short }}{% if amounts != "" %} · {{ amounts }}{% endif %}</span>
-      {{ alert }}
-    </div>
-  {% when 'c' %}
-    <div class="wx__left wx__left--c">
-      <div class="wx__ic wx__ic--xl">{% render "wx_icon", name: loc.now.icon, size: 64 %}</div>
-      <span class="title title--small lg:title--base" data-clamp="1">{{ loc.location }}</span>
-      <div class="wx__row-c">
+      <div class="wx__temps">
         <span class="value value--large lg:value--xxlarge value--tnums">{{ loc.now.temp }}°</span>
-        <div class="wx__stack">
+        <div class="wx__hilo">
           <span class="value value--xsmall lg:value--small font--bold">{{ today.hi }}°</span>
           <span class="value value--xsmall lg:value--small">{{ today.lo }}°</span>
         </div>
@@ -131,29 +103,6 @@
       <span class="label label--small lg:label--base" data-clamp="1">{{ loc.now.short }}{% if amounts != "" %} · {{ amounts }}{% endif %}</span>
       {{ alert }}
     </div>
-  {% when 'd' %}
-    <div class="wx__left wx__left--d">
-      <span class="title title--small lg:title--base" data-clamp="1">{{ loc.location }}</span>
-      <div class="wx__row-c">
-        <div class="wx__ic">{% render "wx_icon", name: loc.now.icon, size: 64 %}</div>
-        <span class="value value--large lg:value--xxlarge value--tnums">{{ loc.now.temp }}°</span>
-      </div>
-      <span class="label label--small lg:label--base" data-clamp="1">{{ loc.now.short }}</span>
-      <div class="wx__facts">
-        <span class="label label--small lg:label--base">Low</span><span class="label label--small lg:label--base">{{ today.lo }}°</span>
-        <span class="label label--small lg:label--base">High</span><span class="label label--small lg:label--base font--bold">{{ today.hi }}°</span>
-        {% if amounts != "" %}<span class="label label--small lg:label--base">Today</span><span class="label label--small lg:label--base" data-clamp="1">{{ amounts }}</span>{% endif %}
-      </div>
-      {{ alert }}
-    </div>
-  {% else %}
-    <div class="wx__hero">{% render "wx_icon", name: loc.now.icon, size: 64 %}</div>
-    <span class="title title--small lg:title--base" data-clamp="1">{{ loc.location }}</span>
-    <span class="value value--large lg:value--xxlarge value--tnums">{{ loc.now.temp }}°</span>
-    <span class="label label--small" data-clamp="1">{{ loc.now.short }}</span>
-    {{ alert }}
-    {% if amounts != "" %}<span class="label label--small" data-clamp="1">{{ amounts }}</span>{% endif %}
-  {% endcase %}
   {% endunless %}
   </div>
 
