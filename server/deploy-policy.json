@@ -1,0 +1,51 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SamStacks",
+      "Effect": "Allow",
+      "Action": "cloudformation:*",
+      "Resource": [
+        "arn:aws:cloudformation:*:*:stack/trmnl-nws-weather/*",
+        "arn:aws:cloudformation:*:*:stack/aws-sam-cli-managed-default/*",
+        "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31"
+      ]
+    },
+    {
+      "Sid": "CloudFormationReadOnly",
+      "Effect": "Allow",
+      "Action": ["cloudformation:ValidateTemplate", "cloudformation:GetTemplateSummary", "cloudformation:ListStacks"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SamArtifactBucket",
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": ["arn:aws:s3:::aws-sam-cli-managed-default-*", "arn:aws:s3:::aws-sam-cli-managed-default-*/*"]
+    },
+    {
+      "Sid": "Function",
+      "Effect": "Allow",
+      "Action": "lambda:*",
+      "Resource": "arn:aws:lambda:*:*:function:trmnl-nws-weather-*"
+    },
+    {
+      "Sid": "FunctionRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:PassRole", "iam:TagRole", "iam:UntagRole",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy"
+      ],
+      "Resource": "arn:aws:iam::*:role/trmnl-nws-weather-*"
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy", "logs:DescribeLogGroups",
+        "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
