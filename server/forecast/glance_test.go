@@ -292,13 +292,13 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	}
 	days := make([]Day, 3)
 
-	// auto: rain buckets as rain bars, snow buckets as snow bars, on fixed square-root scales
-	// (full height = 2.4″ of rain or 24″ of snow per 6 hours): 0.5″ of rain is 45.6%, 1″ of snow 20.4%.
+	// auto: rain buckets as rain bars, snow buckets as snow bars, on fixed scales where half
+	// height is 0.6″ of rain or 6″ of snow per 6 hours: 0.5″ of rain is 41.7%, 1″ of snow 8.3%.
 	c := buildChart(&grid, days, loc, now, "us", "auto")
 	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
-	want := map[int]Bar{3: {45.6, "rain", "gray-55"}, 6: {20.4, "snow", "gray-35"}, 7: {20.4, "snow", "gray-35"}}
+	want := map[int]Bar{3: {41.7, "rain", "gray-55"}, 6: {8.3, "snow", "gray-35"}, 7: {8.3, "snow", "gray-35"}}
 	for i, b := range c.Bars {
 		if b != want[i] {
 			t.Errorf("bar %d = %+v, want %+v", i, b, want[i])
@@ -322,7 +322,7 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	// precip: all liquid, snow included as water (0.1″ per bucket), on the rain scale.
 	days = make([]Day, 3)
 	c = buildChart(&grid, days, loc, now, "us", "precip")
-	if c.Bars[3].Height != 45.6 || c.Bars[6] != (Bar{20.4, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
+	if c.Bars[3].Height != 41.7 || c.Bars[6] != (Bar{8.3, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
 		!reflect.DeepEqual(days[1].Amounts, []string{"0.20″ precip"}) {
 		t.Errorf("precip chart = %+v, days %+v", c, days)
 	}
@@ -394,20 +394,13 @@ func TestShareScale(t *testing.T) {
 }
 
 func TestBarScale(t *testing.T) {
-	// The documented landmarks: 1″, 6″ and 24″ of snow in 6 hours, and anything beyond.
-	var grid GridData
-	if err := json.Unmarshal([]byte(`{"properties":{"snowfallAmount":{"values":[
-		{"validTime":"2026-10-25T07:00:00+00:00/PT6H","value":25.4},
-		{"validTime":"2026-10-25T13:00:00+00:00/PT6H","value":152.4},
-		{"validTime":"2026-10-25T19:00:00+00:00/PT6H","value":609.6},
-		{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":1000}]}}}`), &grid); err != nil {
-		t.Fatal(err)
-	}
-	loc, _ := time.LoadLocation("America/Los_Angeles")
-	c := buildChart(&grid, make([]Day, 1), loc, time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC), "us", "auto")
-	for i, want := range []float64{20.4, 50, 100, 100} {
-		if c.Bars[i].Height != want {
-			t.Errorf("bar %d = %v, want %v", i, c.Bars[i].Height, want)
+	// Snow per 6 hours: linear with 6″ at half height, 12″ at full, more clipped to full.
+	for _, tc := range []struct{ amount, want float64 }{{0, 0}, {1, 8.3}, {3, 25}, {6, 50}, {9, 75}, {12, 100}, {24, 100}} {
+		if got := barHeight(tc.amount, snowHalfIn); got != tc.want {
+			t.Errorf("snow %v″ = %v%%, want %v%%", tc.amount, got, tc.want)
+		}
+		if got := barHeight(tc.amount/10, rainHalfIn); got != tc.want {
+			t.Errorf("rain %v″ = %v%%, want %v%%", tc.amount/10, got, tc.want)
 		}
 	}
 }

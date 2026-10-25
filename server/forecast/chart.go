@@ -186,15 +186,20 @@ type Bar struct {
 
 var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
 
-// What a full-height bar means, per 6 hours. These never change, so the bars read the same on
-// every screen and every day. Snow and rain use the usual 10:1 snow-to-water ratio, so equal
-// heights hold about the same amount of water. Heights follow the square root of the amount,
-// so everyday snow and rain stay visible while a 24″ dump still fits: 1″ of snow (or 0.1″ of
-// rain) is a fifth of the height, 6″ (0.6″) is half, and 24″ (2.4″) or more is full.
+// Bar scales, per 6 hours. They never change, so the bars read the same on every screen and
+// every day: a half-height bar is 6″ of snow (0.6″ of rain), height is proportional to the
+// amount, and anything past full height (12″ / 1.2″) is drawn at full height, with the day's
+// amount label giving the real number. Snow and rain use the usual 10:1 snow-to-water ratio,
+// so equal heights hold about the same amount of water.
 const (
-	snowFullIn, rainFullIn = 24.0, 2.4
-	snowFullCm, rainFullMm = 60.0, 60.0
+	snowHalfIn, rainHalfIn = 6.0, 0.6
+	snowHalfCm, rainHalfMm = 15.0, 15.0
 )
+
+// barHeight maps an amount to 0-100 % of the chart height, with half the height at half.
+func barHeight(amount, half float64) float64 {
+	return math.Min(100, math.Round(500*amount/half)/10)
+}
 
 // fillBars buckets snowfall and precipitation into 6-hour bars and per-day totals.
 //
@@ -206,10 +211,10 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 	snowIvs := grid.Properties.SnowfallAmount.intervals()
 	precipIvs := grid.Properties.QuantitativePrecipitation.intervals()
 	snowConv, rainConv := 1/25.4, 1/25.4 // mm -> in
-	snowFull, rainFull := snowFullIn, rainFullIn
+	snowHalf, rainHalf := snowHalfIn, rainHalfIn
 	if units == "si" {
 		snowConv, rainConv = 0.1, 1 // mm -> cm, mm
-		snowFull, rainFull = snowFullCm, rainFullMm
+		snowHalf, rainHalf = snowHalfCm, rainHalfMm
 	}
 	if mode != "snow" && mode != "precip" {
 		mode = "auto"
@@ -238,16 +243,13 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 		anyAmount = anyAmount || b.snow > 0 || b.rain > 0
 	}
 
-	height := func(amount, full float64) float64 {
-		return math.Round(math.Sqrt(math.Min(amount/full, 1))*1000) / 10
-	}
 	for _, b := range buckets {
 		bar := Bar{}
 		switch {
 		case b.snow > 0:
-			bar = Bar{height(b.snow, snowFull), "snow", barShades["snow"]}
+			bar = Bar{barHeight(b.snow, snowHalf), "snow", barShades["snow"]}
 		case b.rain > 0:
-			bar = Bar{height(b.rain, rainFull), "rain", barShades["rain"]}
+			bar = Bar{barHeight(b.rain, rainHalf), "rain", barShades["rain"]}
 		}
 		c.Bars = append(c.Bars, bar)
 		c.Snow += b.snow
