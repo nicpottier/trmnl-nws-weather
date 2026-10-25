@@ -86,7 +86,8 @@
     {% endif %}
     {% unless compact %}
       {% if loc.alerts.size > 0 %}<span class="label label--small label--inverted" data-clamp="1">{{ loc.alerts.first.event }}</span>{% endif %}
-      {% if chart %}<span class="label label--small" data-clamp="1">{{ chart.label }}</span>{% endif %}
+      {% assign today = loc.days.first %}
+      {% if today.amounts.size > 0 %}<span class="label label--small" data-clamp="1">{{ today.amounts | join: " · " }}</span>{% endif %}
     {% endunless %}
   </div>
 
