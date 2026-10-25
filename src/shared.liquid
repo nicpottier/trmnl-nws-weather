@@ -10,6 +10,7 @@
   .wx__axis > span { position: absolute; right: 6px; transform: translateY(-50%); }
   .wx__plot { position: relative; flex: 1 1 auto; border-bottom: 2px solid currentColor; }
   .wx__bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
+  .wx__now-line { position: absolute; top: 0; bottom: 0; width: 4px; transform: translateX(-50%); }
   .wx__bars > div { flex: 1 1 0; }
   .wx__plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .wx__icon { display: block; flex: none; }
@@ -108,13 +109,13 @@
         <div class="wx__bars">
           {% for bar in chart.bars %}<div class="bg--{{ chart.bar_shade }}" style="height: {{ bar }}%;"></div>{% endfor %}
         </div>
+        <div class="wx__now-line bg--gray-75" style="left: {{ chart.now_pct }}%;"></div>
         <svg viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor">
           {% for day in loc.days limit: chart.days offset: 1 %}
             {% assign x = forloop.index | times: 1000 | divided_by: chart.days %}
             <line x1="{{ x }}" y1="0" x2="{{ x }}" y2="100" stroke-width="1" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"/>
           {% endfor %}
           {% if chart.freeze_y %}<line x1="0" y1="{{ chart.freeze_y }}" x2="1000" y2="{{ chart.freeze_y }}" stroke-width="1.5" stroke-dasharray="8 5" vector-effect="non-scaling-stroke"/>{% endif %}
-          <line x1="{{ chart.now_x }}" y1="0" x2="{{ chart.now_x }}" y2="100" stroke-width="2" vector-effect="non-scaling-stroke"/>
           <path d="{{ chart.temp_path }}" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
         </svg>
       </div>
