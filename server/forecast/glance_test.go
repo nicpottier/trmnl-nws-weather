@@ -129,7 +129,8 @@ func TestBuildGlanceMorning(t *testing.T) {
 	if g.Now.Temp != 35 || g.Now.Source != "LVN11" || g.Now.ObservedAt != "7:00 AM" || g.Now.Humidity != 77 {
 		t.Errorf("now = %+v", g.Now)
 	}
-	if g.Now.Icon != "partly" || g.Now.Wind != "Calm" {
+	// The hour is Partly Sunny, but a trace of rain is forecast for this evening, so the icon shows it.
+	if g.Now.Short != "Partly Sunny" || g.Now.Icon != "sprinkles" || g.Now.Wind != "Calm" {
 		t.Errorf("now = %+v", g.Now)
 	}
 	if len(g.Days) != 7 {
@@ -455,6 +456,31 @@ func TestLightAmounts(t *testing.T) {
 		}
 		if got := describeAmount(tc.v, formatAmount(tc.v, tc.kind, tc.units), tc.kind, light, limit); got != tc.want {
 			t.Errorf("%v %s (%s) = %q, want %q", tc.v, tc.kind, tc.units, got, tc.want)
+		}
+	}
+}
+
+func TestTodayIcon(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	noon := time.Date(2026, 10, 25, 19, 0, 0, 0, time.UTC) // 12 PM PDT
+	icon := func(series string) string {
+		var grid GridData
+		if err := json.Unmarshal([]byte(`{"properties":`+series+`}`), &grid); err != nil {
+			t.Fatal(err)
+		}
+		return buildChart(&grid, make([]Day, 2), loc, noon, "us", "auto").TodayIcon
+	}
+	// Local 6 PM-midnight today is 01:00Z-07:00Z tomorrow; 6 AM-noon today is 13:00Z-19:00Z.
+	for name, tc := range map[string]struct{ series, want string }{
+		"sprinkles this evening": {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":0.05}]}}`, "sprinkles"},
+		"rain this evening":      {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":5}]}}`, "rain"},
+		"rain this morning only": {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-25T13:00:00+00:00/PT6H","value":5}]}}`, ""},
+		"rain tomorrow only":     {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T13:00:00+00:00/PT6H","value":5}]}}`, ""},
+		"flurries this evening":  {`{"snowfallAmount":{"values":[{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":2.54}]}}`, "flurries"},
+		"snow this afternoon":    {`{"snowfallAmount":{"values":[{"validTime":"2026-10-25T19:00:00+00:00/PT6H","value":25.4}]}}`, "snow"},
+	} {
+		if got := icon(tc.series); got != tc.want {
+			t.Errorf("%s: today_icon = %q, want %q", name, got, tc.want)
 		}
 	}
 }

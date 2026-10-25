@@ -127,6 +127,7 @@ type Chart struct {
 	Rain      float64  `json:"rain_total"`   // total rain (or all precip, in "precip" mode)
 	Label     string   `json:"label"`        // e.g. "Snow 1.8″ · Rain 0.25″"
 	Freeze    string   `json:"freeze_label"` // "32°" or "0°"
+	TodayIcon string   `json:"today_icon"`   // rain/snow still forecast today: "sprinkles", "rain", "flurries", "snow" or ""
 
 	samples []sample // hourly temperatures in display units, kept so the scale can be changed
 	freeze  float64  // 32 or 0, in display units
@@ -173,7 +174,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 		c.setScale(lo, hi)
 	}
 
-	c.fillBars(grid, days, start, end, units, barMode)
+	c.fillBars(grid, days, start, end, now, units, barMode)
 	return c
 }
 
@@ -207,7 +208,7 @@ func barHeight(amount, half float64) float64 {
 // bucket is a rain bar (inches of liquid), each on its fixed scale, so a mountain pass
 // shows both its rain days and its snow days. "snow" shows only snowfall, and "precip" shows
 // all liquid precipitation (snow included, as water) as rain bars.
-func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units, mode string) {
+func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, units, mode string) {
 	snowIvs := grid.Properties.SnowfallAmount.intervals()
 	precipIvs := grid.Properties.QuantitativePrecipitation.intervals()
 	snowConv, rainConv := 1/25.4, 1/25.4 // mm -> in
@@ -285,6 +286,24 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 		if a := describeAmount(rn, days[i].Rain, rainWord, "Sprinkles", sprinkles); a != "" {
 			days[i].Amounts = append(days[i].Amounts, a)
 		}
+	}
+
+	// What's still to come today (the bucket we're in counts), for the current-conditions icon.
+	restSnow, restRain := 0.0, 0.0
+	for k, b := range buckets[:min(perDay, len(buckets))] {
+		if start.Add(time.Duration(k+1) * barHours * time.Hour).After(now) {
+			restSnow, restRain = restSnow+b.snow, restRain+b.rain
+		}
+	}
+	switch {
+	case restSnow > 0 && restSnow < flurries:
+		c.TodayIcon = "flurries"
+	case restSnow > 0:
+		c.TodayIcon = "snow"
+	case restRain > 0 && restRain < sprinkles:
+		c.TodayIcon = "sprinkles"
+	case restRain > 0:
+		c.TodayIcon = "rain"
 	}
 
 	parts := []string{}

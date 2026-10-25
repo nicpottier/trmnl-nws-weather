@@ -155,6 +155,10 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	var chart *Chart
 	if grid != nil && len(days) > 0 {
 		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars)
+		// The icon shows rain or snow still forecast for today, even if it isn't falling this hour.
+		if chart.TodayIcon != "" {
+			nowIcon = chart.TodayIcon
+		}
 	}
 
 	name := opts.Name
