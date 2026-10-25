@@ -127,10 +127,14 @@ type Chart struct {
 	Rain      float64  `json:"rain_total"`   // total rain (or all precip, in "precip" mode)
 	Label     string   `json:"label"`        // e.g. "Snow 1.8″ · Rain 0.25″"
 	Freeze    string   `json:"freeze_label"` // "32°" or "0°"
-	TodayIcon string   `json:"today_icon"`   // rain/snow still forecast today: "sprinkles", "rain", "flurries", "snow" or ""
 
 	samples []sample // hourly temperatures in display units, kept so the scale can be changed
 	freeze  float64  // 32 or 0, in display units
+
+	// Snow and rain still forecast for the rest of today (the current 6-hour block included),
+	// and the amounts below which they count as flurries / sprinkles, all in display units.
+	restSnow, restRain  float64
+	flurries, sprinkles float64
 }
 
 type sample struct {
@@ -288,22 +292,12 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, 
 		}
 	}
 
-	// What's still to come today (the bucket we're in counts), for the current-conditions icon.
-	restSnow, restRain := 0.0, 0.0
+	// What's still to come today (the block we're in counts), for the current-conditions icon.
+	c.flurries, c.sprinkles = flurries, sprinkles
 	for k, b := range buckets[:min(perDay, len(buckets))] {
 		if start.Add(time.Duration(k+1) * barHours * time.Hour).After(now) {
-			restSnow, restRain = restSnow+b.snow, restRain+b.rain
+			c.restSnow, c.restRain = c.restSnow+b.snow, c.restRain+b.rain
 		}
-	}
-	switch {
-	case restSnow > 0 && restSnow < flurries:
-		c.TodayIcon = "flurries"
-	case restSnow > 0:
-		c.TodayIcon = "snow"
-	case restRain > 0 && restRain < sprinkles:
-		c.TodayIcon = "sprinkles"
-	case restRain > 0:
-		c.TodayIcon = "rain"
 	}
 
 	parts := []string{}

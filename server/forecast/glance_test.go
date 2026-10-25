@@ -460,27 +460,33 @@ func TestLightAmounts(t *testing.T) {
 	}
 }
 
-func TestTodayIcon(t *testing.T) {
-	loc, _ := time.LoadLocation("America/Los_Angeles")
-	noon := time.Date(2026, 10, 25, 19, 0, 0, 0, time.UTC) // 12 PM PDT
-	icon := func(series string) string {
-		var grid GridData
-		if err := json.Unmarshal([]byte(`{"properties":`+series+`}`), &grid); err != nil {
-			t.Fatal(err)
-		}
-		return buildChart(&grid, make([]Day, 2), loc, noon, "us", "auto").TodayIcon
+func TestCurrentIcon(t *testing.T) {
+	chart := func(snow, rain float64) *Chart {
+		return &Chart{restSnow: snow, restRain: rain, flurries: flurriesIn, sprinkles: sprinklesIn}
 	}
-	// Local 6 PM-midnight today is 01:00Z-07:00Z tomorrow; 6 AM-noon today is 13:00Z-19:00Z.
-	for name, tc := range map[string]struct{ series, want string }{
-		"sprinkles this evening": {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":0.05}]}}`, "sprinkles"},
-		"rain this evening":      {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":5}]}}`, "rain"},
-		"rain this morning only": {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-25T13:00:00+00:00/PT6H","value":5}]}}`, ""},
-		"rain tomorrow only":     {`{"quantitativePrecipitation":{"values":[{"validTime":"2026-10-26T13:00:00+00:00/PT6H","value":5}]}}`, ""},
-		"flurries this evening":  {`{"snowfallAmount":{"values":[{"validTime":"2026-10-26T01:00:00+00:00/PT6H","value":2.54}]}}`, "flurries"},
-		"snow this afternoon":    {`{"snowfallAmount":{"values":[{"validTime":"2026-10-25T19:00:00+00:00/PT6H","value":25.4}]}}`, "snow"},
+	for _, tc := range []struct {
+		name       string
+		icon       string
+		short      string
+		snow, rain float64
+		temp       int
+		want       string
+	}{
+		{"Stevens Pass, 40% rain and snow, nothing measurable, 39°F", "snow", "Chance Rain And Snow", 0, 0, 39, "sprinkles"},
+		{"same at 31°F", "snow", "Chance Rain And Snow", 0, 0, 31, "flurries"},
+		{"snow wording, nothing measurable", "snow", "Chance Snow", 0, 0, 30, "flurries"},
+		{"rain wording, nothing measurable", "rain", "Chance Rain Showers", 0, 0, 50, "sprinkles"},
+		{"sunny now, trace of rain this evening", "partly", "Mostly Sunny", 0, 0.002, 37, "sprinkles"},
+		{"cloudy now, real rain later", "cloudy", "Mostly Cloudy", 0, 0.2, 45, "rain"},
+		{"snowing, 2 inches to come", "snow", "Snow", 2, 0, 28, "snow"},
+		{"light snow", "flurries", "Light Snow Likely", 0.1, 0, 30, "flurries"},
+		{"rain and snow both measurable", "snow", "Rain And Snow", 1, 0.1, 34, "sleet"},
+		{"rain wording but the grid says snow", "rain", "Rain Showers", 1, 0, 33, "snow"},
+		{"clear, nothing today", "clear", "Sunny", 0, 0, 60, "clear"},
+		{"thunderstorms", "storm", "Showers And Thunderstorms", 0, 0.5, 70, "storm"},
 	} {
-		if got := icon(tc.series); got != tc.want {
-			t.Errorf("%s: today_icon = %q, want %q", name, got, tc.want)
+		if got := currentIcon(tc.icon, tc.short, chart(tc.snow, tc.rain), tc.temp, "us"); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
 		}
 	}
 }

@@ -155,10 +155,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	var chart *Chart
 	if grid != nil && len(days) > 0 {
 		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars)
-		// The icon shows rain or snow still forecast for today, even if it isn't falling this hour.
-		if chart.TodayIcon != "" {
-			nowIcon = chart.TodayIcon
-		}
+		nowIcon = currentIcon(nowIcon, hour.ShortForecast, chart, nowTemp, opts.Units)
 	}
 
 	name := opts.Name
@@ -199,6 +196,53 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		Scale:       Scale{Min: lo, Max: hi},
 		Chart:       chart,
 	}, nil
+}
+
+// currentIcon refines the icon for the current hour (from its NWS wording) with the rain and
+// snow the grid forecasts for the rest of today, so the icon matches the amounts on the chart.
+//
+//   - Measurable amounts decide: both snow and rain past the light limits is a rain/snow mix
+//     ("sleet"), otherwise snow, rain, or flurries / sprinkles when light. This also catches
+//     rain or snow later today under a sky that's only cloudy right now.
+//   - Wording that mentions precipitation without a measurable amount ("Chance Rain And Snow"
+//     with nothing in the grid) is flurries or sprinkles; for a rain/snow mix the temperature
+//     picks (34°F / 1°C or colder is flurries).
+//   - Thunderstorms keep their icon.
+func currentIcon(icon, short string, c *Chart, temp int, units string) string {
+	if icon == "storm" {
+		return icon
+	}
+	heavySnow, heavyRain := c.restSnow >= c.flurries, c.restRain >= c.sprinkles
+	switch {
+	case heavySnow && heavyRain:
+		return "sleet"
+	case heavySnow:
+		return "snow"
+	case heavyRain:
+		return "rain"
+	case c.restSnow > 0:
+		return "flurries"
+	case c.restRain > 0:
+		return "sprinkles"
+	}
+
+	switch icon {
+	case "rain", "sprinkles":
+		return "sprinkles"
+	case "snow", "flurries":
+		text := strings.ToLower(short)
+		if strings.Contains(text, "rain") || strings.Contains(text, "drizzle") || strings.Contains(text, "shower") {
+			cold := 34
+			if units == "si" {
+				cold = 1
+			}
+			if temp > cold {
+				return "sprinkles"
+			}
+		}
+		return "flurries"
+	}
+	return icon // sky (clear, partly, cloudy, ...) or a freezing mix, with nothing measurable today
 }
 
 func trend(hourly []Period, hour *Period, nowTemp int) string {
