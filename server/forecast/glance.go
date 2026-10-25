@@ -307,8 +307,10 @@ type condition struct {
 var conditions = []condition{
 	{[]string{"thunder", "t-storm", "tstorm"}, "storm", 5},
 	{[]string{"blizzard", "heavy snow", "freezing", "ice", "sleet"}, "sleet", 5},
-	{[]string{"snow", "flurr"}, "snow", 4},
-	{[]string{"rain", "shower", "drizzle"}, "rain", 3},
+	{[]string{"flurr", "light snow"}, "flurries", 3},
+	{[]string{"snow"}, "snow", 4},
+	{[]string{"drizzle", "sprinkle", "light rain"}, "sprinkles", 2},
+	{[]string{"rain", "shower"}, "rain", 3},
 	{[]string{"fog", "haze", "smoke", "dust"}, "fog", 2},
 	{[]string{"partly", "mostly sunny", "mostly clear", "few clouds"}, "partly", 1},
 	{[]string{"mostly cloudy", "cloudy", "overcast"}, "cloudy", 2},

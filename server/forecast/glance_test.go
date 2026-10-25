@@ -33,6 +33,11 @@ func TestClassify(t *testing.T) {
 		{"Showers And Thunderstorms Likely", 70, "storm", 5},
 		{"Freezing Rain", 80, "sleet", 5},
 		{"Patchy Fog", 0, "fog", 2},
+		{"Flurries", 20, "flurries", 3},
+		{"Chance Light Snow", 40, "flurries", 3},
+		{"Light Snow Likely", 60, "flurries", 3},
+		{"Patchy Drizzle", 20, "sprinkles", 2},
+		{"Light Rain", 50, "sprinkles", 2},
 	}
 	for _, tc := range tests {
 		icon, severity := classify(tc.short, tc.pop)
