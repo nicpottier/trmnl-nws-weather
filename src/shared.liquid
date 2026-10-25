@@ -61,7 +61,8 @@
   One location: current conditions on the left; on the right a week-long chart with the hourly
   temperature line (and freezing line) over 6-hour snow or precipitation bars, daily highs/lows
   above it and daily totals below. Positions and paths come precomputed from the service.
-  Params: loc (one entry of locations), compact (true to drop icons and totals).
+  Params: loc (one entry of locations), compact (true for the small layouts),
+  show_dates (the day names; stacked locations share them, so only the first shows them).
 {% endcomment %}
 {% template wx_location %}
 {% if loc.error %}
@@ -91,14 +92,13 @@
 
   {% if chart %}
   <div class="wx__chart">
+    {% if show_dates %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
-      <div>
-        <span class="label label--small lg:label--base">{% if compact %}{{ day.dow }}{% else %}{{ day.label }}{% endif %}</span>
-        {% unless compact %}{% render "wx_icon", name: day.icon, size: 20 %}{% endunless %}
-      </div>
+      <div><span class="label label--small lg:label--base">{% if compact %}{{ day.dow }}{% else %}{{ day.label }}{% endif %}</span></div>
       {% endfor %}
     </div>
+    {% endif %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
       <div><span class="value value--xxsmall lg:value--xsmall font--bold">{{ day.hi }}°</span><span class="value value--xxsmall lg:value--xsmall">{{ day.lo }}°</span></div>

@@ -1,7 +1,7 @@
 {% comment %} Half the height: the first location only. {% endcomment %}
 {% if locations.size > 0 %}
 <div class="layout layout--col layout--stretch wx-screen">
-  {% render "wx_location", loc: locations.first, compact: false %}
+  {% render "wx_location", loc: locations.first, compact: false, show_dates: true %}
 </div>
 {% render "wx_title_bar", locations: locations %}
 {% else %}

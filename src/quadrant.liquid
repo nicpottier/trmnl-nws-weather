@@ -1,6 +1,6 @@
 {% if locations.size > 0 %}
 <div class="layout layout--col layout--stretch wx-screen">
-  {% render "wx_location", loc: locations.first, compact: true %}
+  {% render "wx_location", loc: locations.first, compact: true, show_dates: true %}
 </div>
 {% render "wx_title_bar", locations: locations %}
 {% else %}
