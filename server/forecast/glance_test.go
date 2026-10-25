@@ -404,3 +404,20 @@ func TestBarScale(t *testing.T) {
 		}
 	}
 }
+
+func TestTotalsMatchDayLabels(t *testing.T) {
+	// Three days of 0.084″ of rain each show as 0.08″; the total must read 0.24″, not 0.25″.
+	var grid GridData
+	if err := json.Unmarshal([]byte(`{"properties":{"quantitativePrecipitation":{"values":[
+		{"validTime":"2026-10-25T07:00:00+00:00/PT6H","value":2.1336},
+		{"validTime":"2026-10-26T07:00:00+00:00/PT6H","value":2.1336},
+		{"validTime":"2026-10-27T07:00:00+00:00/PT6H","value":2.1336}]}}}`), &grid); err != nil {
+		t.Fatal(err)
+	}
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	days := make([]Day, 3)
+	c := buildChart(&grid, days, loc, time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC), "us", "auto")
+	if days[0].Rain != "0.08″" || c.Label != "Rain 0.24″" {
+		t.Errorf("day %q, label %q", days[0].Rain, c.Label)
+	}
+}

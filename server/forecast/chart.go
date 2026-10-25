@@ -252,8 +252,6 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 			bar = Bar{barHeight(b.rain, rainHalf), "rain", barShades["rain"]}
 		}
 		c.Bars = append(c.Bars, bar)
-		c.Snow += b.snow
-		c.Rain += b.rain
 	}
 	c.HasAmount = anyAmount
 
@@ -269,6 +267,13 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end time.Time, units
 		}
 		days[i].Snow = formatAmount(sn, "snow", units)
 		days[i].Rain = formatAmount(rn, "rain", units)
+		// Totals add up the amounts as shown, so they always match the day labels.
+		if days[i].Snow != "" {
+			c.Snow += roundAmount(sn, "snow", units)
+		}
+		if days[i].Rain != "" {
+			c.Rain += roundAmount(rn, "rain", units)
+		}
 		days[i].Amounts = []string{}
 		if days[i].Snow != "" {
 			days[i].Amounts = append(days[i].Amounts, days[i].Snow+" snow")
@@ -379,9 +384,18 @@ func formatAmount(v float64, kind, units string) string {
 	return trimAmount(v, kind, units) + unit
 }
 
+// roundAmount rounds to the precision amounts are shown at: hundredths of an inch of rain,
+// tenths otherwise.
+func roundAmount(v float64, kind, units string) float64 {
+	if kind == "rain" && units != "si" {
+		return math.Round(v*100) / 100
+	}
+	return math.Round(v*10) / 10
+}
+
 func trimAmount(v float64, kind, units string) string {
 	if kind == "rain" && units != "si" {
-		return strconv.FormatFloat(math.Round(v*100)/100, 'f', 2, 64)
+		return strconv.FormatFloat(roundAmount(v, kind, units), 'f', 2, 64)
 	}
-	return strconv.FormatFloat(math.Round(v*10)/10, 'f', 1, 64)
+	return strconv.FormatFloat(roundAmount(v, kind, units), 'f', 1, 64)
 }

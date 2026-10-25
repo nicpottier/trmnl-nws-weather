@@ -85,9 +85,8 @@
     <span class="label label--small" data-clamp="1">{{ loc.now.short }}</span>
     {% endif %}
     {% unless compact %}
-      <span class="label label--small label--gray 1bit:text--black" data-clamp="1">{% if loc.now.source == "forecast" %}Forecast{% else %}{{ loc.now.source }} {{ loc.now.observed_at }}{% endif %}</span>
       {% if loc.alerts.size > 0 %}<span class="label label--small label--inverted" data-clamp="1">{{ loc.alerts.first.event }}</span>{% endif %}
-      {% if chart %}<span class="label label--small label--outline" data-clamp="1">{{ chart.label }}</span>{% endif %}
+      {% if chart %}<span class="label label--small" data-clamp="1">{{ chart.label }}</span>{% endif %}
     {% endunless %}
   </div>
 
