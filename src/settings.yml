@@ -27,6 +27,7 @@ custom_fields:
   name: Service URL
   description: Your deployed forecast service (a Vercel domain or AWS Lambda Function URL).
   placeholder: https://trmnl-nws-weather.vercel.app/
+  default: https://trmnl-nws-weather.vercel.app/
 - keyname: access_token
   field_type: password
   name: Access token
