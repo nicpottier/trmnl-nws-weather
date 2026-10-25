@@ -147,11 +147,16 @@ func Serve(ctx context.Context, q url.Values) (int, []byte) {
 	}
 	wg.Wait()
 	failed := 0
+	charts := []*Chart{}
 	for _, r := range results {
-		if _, ok := r.(LocationError); ok {
+		switch r := r.(type) {
+		case LocationError:
 			failed++
+		case *Glance:
+			charts = append(charts, r.Chart)
 		}
 	}
+	ShareScale(charts)
 	if failed == len(opts) {
 		return errorResponse(fmt.Errorf("no forecasts available: %s", results[0].(LocationError).Error))
 	}

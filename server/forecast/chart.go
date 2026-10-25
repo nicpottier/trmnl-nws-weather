@@ -130,6 +130,13 @@ type Chart struct {
 	Label     string    `json:"label"`        // e.g. "Snow 2.3″"
 	Legend    string    `json:"legend"`       // e.g. "Snow (6 hr)"
 	Freeze    string    `json:"freeze_label"` // "32°" or "0°"
+
+	samples []sample // hourly temperatures in display units, kept so the scale can be changed
+	freeze  float64  // 32 or 0, in display units
+}
+
+type sample struct {
+	x, t float64 // x in the 0-1000 viewBox, temperature in display units
 }
 
 const barHours = 6
@@ -149,10 +156,6 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 	c.NowPct = c.NowX / 10
 
 	// Hourly temperature samples, converted to display units.
-	type sample struct {
-		x, t float64
-	}
-	samples := []sample{}
 	for _, iv := range grid.Properties.Temperature.intervals() {
 		for t := iv.start; t.Before(iv.end); t = t.Add(time.Hour) {
 			if t.Before(start) || !t.Before(end) {
@@ -162,38 +165,15 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 			if units != "si" {
 				temp = temp*9/5 + 32
 			}
-			samples = append(samples, sample{xOf(t), temp})
+			c.samples = append(c.samples, sample{xOf(t), temp})
 		}
 	}
-	if len(samples) > 1 {
-		lo, hi := samples[0].t, samples[0].t
-		for _, s := range samples {
-			lo, hi = math.Min(lo, s.t), math.Max(hi, s.t)
-		}
-		// Round the scale out to a multiple of 5 so the extremes don't touch the edges.
-		c.TempMin = int(math.Floor((lo-1)/5) * 5)
-		c.TempMax = int(math.Ceil((hi+1)/5) * 5)
-		yOf := func(t float64) float64 {
-			return math.Round((1-(t-float64(c.TempMin))/float64(c.TempMax-c.TempMin))*1000) / 10
-		}
-		var b strings.Builder
-		for i, s := range samples {
-			cmd := "L"
-			if i == 0 {
-				cmd = "M"
-			}
-			fmt.Fprintf(&b, "%s%.1f,%.1f", cmd, s.x, yOf(s.t))
-		}
-		c.TempPath = b.String()
-
-		freeze := 32.0
-		if units == "si" {
-			freeze, c.Freeze = 0, "0°"
-		}
-		if freeze > float64(c.TempMin) && freeze < float64(c.TempMax) {
-			y := yOf(freeze)
-			c.FreezeY = &y
-		}
+	c.freeze = 32
+	if units == "si" {
+		c.freeze, c.Freeze = 0, "0°"
+	}
+	if lo, hi, ok := c.tempRange(); ok {
+		c.setScale(lo, hi)
 	}
 
 	// Snow and precipitation: per-day totals and 6-hour bars.
@@ -259,6 +239,64 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 		c.Label = "No " + strings.ToLower(c.Legend)
 	}
 	return c
+}
+
+// tempRange returns the chart's temperature extremes, rounded out to a multiple of 5 so the
+// line never touches the top or bottom edge.
+func (c *Chart) tempRange() (int, int, bool) {
+	if len(c.samples) < 2 {
+		return 0, 0, false
+	}
+	lo, hi := c.samples[0].t, c.samples[0].t
+	for _, s := range c.samples {
+		lo, hi = math.Min(lo, s.t), math.Max(hi, s.t)
+	}
+	return int(math.Floor((lo-1)/5) * 5), int(math.Ceil((hi+1)/5) * 5), true
+}
+
+// setScale (re)draws the temperature line and freezing line for a chart spanning lo..hi.
+func (c *Chart) setScale(lo, hi int) {
+	c.TempMin, c.TempMax = lo, hi
+	yOf := func(t float64) float64 {
+		return math.Round((1-(t-float64(lo))/float64(hi-lo))*1000) / 10
+	}
+	var b strings.Builder
+	for i, s := range c.samples {
+		cmd := "L"
+		if i == 0 {
+			cmd = "M"
+		}
+		fmt.Fprintf(&b, "%s%.1f,%.1f", cmd, s.x, yOf(s.t))
+	}
+	c.TempPath = b.String()
+
+	c.FreezeY = nil
+	if c.freeze > float64(lo) && c.freeze < float64(hi) {
+		y := yOf(c.freeze)
+		c.FreezeY = &y
+	}
+}
+
+// ShareScale puts every chart on one temperature scale, wide enough for all of them, so
+// stacked locations can be compared at a glance.
+func ShareScale(charts []*Chart) {
+	lo, hi, found := 0, 0, false
+	for _, c := range charts {
+		if c == nil {
+			continue
+		}
+		if l, h, ok := c.tempRange(); ok {
+			if !found {
+				lo, hi, found = l, h, true
+			}
+			lo, hi = min(lo, l), max(hi, h)
+		}
+	}
+	for _, c := range charts {
+		if c != nil && len(c.samples) > 1 {
+			c.setScale(lo, hi)
+		}
+	}
 }
 
 // formatAmount gives a short display amount for a day, or "" when it's effectively zero.

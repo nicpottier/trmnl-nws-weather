@@ -352,3 +352,19 @@ func TestServeMultipleLocations(t *testing.T) {
 		t.Errorf("locations = %+v", resp.Locations)
 	}
 }
+
+func TestShareScale(t *testing.T) {
+	valley := &Chart{samples: []sample{{0, 30}, {500, 56}}, freeze: 32}
+	pass := &Chart{samples: []sample{{0, 22}, {500, 41}}, freeze: 32}
+	ShareScale([]*Chart{valley, nil, pass})
+
+	for _, c := range []*Chart{valley, pass} {
+		if c.TempMin != 20 || c.TempMax != 60 || c.FreezeY == nil || *c.FreezeY != 70 {
+			t.Errorf("chart scale = %d..%d, freeze %v", c.TempMin, c.TempMax, c.FreezeY)
+		}
+	}
+	// 41° on a 20..60 scale sits 47.5% down from the top.
+	if pass.TempPath != "M0.0,95.0L500.0,47.5" {
+		t.Errorf("path = %q", pass.TempPath)
+	}
+}
