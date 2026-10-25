@@ -187,13 +187,13 @@ type Bar struct {
 var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
 
 // Bar scales, per 6 hours. They never change, so the bars read the same on every screen and
-// every day: a half-height bar is 6″ of snow (0.6″ of rain), height is proportional to the
-// amount, and anything past full height (12″ / 1.2″) is drawn at full height, with the day's
+// every day: a half-height bar is 3″ of snow (0.3″ of rain), height is proportional to the
+// amount, and anything past full height (6″ / 0.6″) is drawn at full height, with the day's
 // amount label giving the real number. Snow and rain use the usual 10:1 snow-to-water ratio,
 // so equal heights hold about the same amount of water.
 const (
-	snowHalfIn, rainHalfIn = 6.0, 0.6
-	snowHalfCm, rainHalfMm = 15.0, 15.0
+	snowHalfIn, rainHalfIn = 3.0, 0.3
+	snowHalfCm, rainHalfMm = 7.5, 7.5
 )
 
 // barHeight maps an amount to 0-100 % of the chart height, with half the height at half.

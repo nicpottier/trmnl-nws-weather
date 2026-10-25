@@ -293,12 +293,12 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	days := make([]Day, 3)
 
 	// auto: rain buckets as rain bars, snow buckets as snow bars, on fixed scales where half
-	// height is 0.6″ of rain or 6″ of snow per 6 hours: 0.5″ of rain is 41.7%, 1″ of snow 8.3%.
+	// height is 0.3″ of rain or 3″ of snow per 6 hours: 0.5″ of rain is 83.3%, 1″ of snow 16.7%.
 	c := buildChart(&grid, days, loc, now, "us", "auto")
 	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
-	want := map[int]Bar{3: {41.7, "rain", "gray-55"}, 6: {8.3, "snow", "gray-35"}, 7: {8.3, "snow", "gray-35"}}
+	want := map[int]Bar{3: {83.3, "rain", "gray-55"}, 6: {16.7, "snow", "gray-35"}, 7: {16.7, "snow", "gray-35"}}
 	for i, b := range c.Bars {
 		if b != want[i] {
 			t.Errorf("bar %d = %+v, want %+v", i, b, want[i])
@@ -322,7 +322,7 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	// precip: all liquid, snow included as water (0.1″ per bucket), on the rain scale.
 	days = make([]Day, 3)
 	c = buildChart(&grid, days, loc, now, "us", "precip")
-	if c.Bars[3].Height != 41.7 || c.Bars[6] != (Bar{8.3, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
+	if c.Bars[3].Height != 83.3 || c.Bars[6] != (Bar{16.7, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
 		!reflect.DeepEqual(days[1].Amounts, []string{"0.20″ precip"}) {
 		t.Errorf("precip chart = %+v, days %+v", c, days)
 	}
@@ -394,8 +394,8 @@ func TestShareScale(t *testing.T) {
 }
 
 func TestBarScale(t *testing.T) {
-	// Snow per 6 hours: linear with 6″ at half height, 12″ at full, more clipped to full.
-	for _, tc := range []struct{ amount, want float64 }{{0, 0}, {1, 8.3}, {3, 25}, {6, 50}, {9, 75}, {12, 100}, {24, 100}} {
+	// Snow per 6 hours: linear with 3″ at half height, 6″ at full, more clipped to full.
+	for _, tc := range []struct{ amount, want float64 }{{0, 0}, {1, 16.7}, {1.5, 25}, {3, 50}, {4.5, 75}, {6, 100}, {24, 100}} {
 		if got := barHeight(tc.amount, snowHalfIn); got != tc.want {
 			t.Errorf("snow %v″ = %v%%, want %v%%", tc.amount, got, tc.want)
 		}

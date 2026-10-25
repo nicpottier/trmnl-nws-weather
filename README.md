@@ -7,8 +7,8 @@ one above the other. For each location you get:
 - each day's forecast high and low, with an icon
 - an hourly temperature line for the week, a dashed freezing line, and a marker at the current time
 - 6-hour bars for snow (dark) and rain (light), plus each day's snow and rain totals. The scale is fixed so it can
-  be learned: a half-height bar is 6″ of snow or 0.6″ of rain in 6 hours (15 cm / 15 mm), heights are proportional,
-  and anything over 12″ (1.2″) is drawn at full height
+  be learned: a half-height bar is 3″ of snow or 0.3″ of rain in 6 hours (7.5 cm / 7.5 mm), heights are proportional,
+  and anything over 6″ (0.6″) is drawn at full height, with the daily label giving the real amount
 
 Defaults to Leavenworth, WA and Stevens Pass, WA. Shown on a TRMNL X (1872×1404, 16 grays):
 
