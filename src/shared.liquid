@@ -20,9 +20,9 @@
   .wx__icon { display: block; flex: none; }
   .screen--lg .wx__now .value { line-height: 0.85; }
   .wx-screen { --wx-axis: 34px; }
-  .wx__left { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 6px; height: 100%; }
-  .screen--lg .wx__left { gap: 10px; }
-  .wx__ic--xl svg { width: 44px; height: 44px; display: block; }
+  .wx__left { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; height: 100%; }
+  .screen--lg .wx__left { gap: 6px; }
+  .wx__ic--xl svg { width: 38px; height: 38px; display: block; }
   .screen--lg .wx__ic--xl svg { width: 120px; height: 120px; stroke-width: 1.2; }
   /* The high and low sit beside the current temperature, high level with its top, low with its bottom. */
   .wx__temps { display: flex; align-items: stretch; gap: 10px; }
@@ -104,7 +104,8 @@
           <span class="value value--xsmall lg:value--small">{{ today.lo }}°</span>
         </div>
       </div>
-      <span class="label label--small lg:label--base" data-clamp="1">{{ loc.now.short }}{% if amounts != "" %} · {{ amounts }}{% endif %}</span>
+      <span class="label label--small lg:label--base" data-clamp="2">{{ loc.now.short }}</span>
+      {% if amounts != "" %}<span class="label label--small lg:label--base" data-clamp="1">{{ amounts }}</span>{% endif %}
       {{ alert }}
     </div>
   {% endunless %}
