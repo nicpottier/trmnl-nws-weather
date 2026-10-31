@@ -17,7 +17,7 @@
   }
   .wx__bars > div { flex: 1 1 0; }
   .wx__plot svg { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; overflow: visible; }
-  .wx__icon { display: block; flex: none; }
+  .wx__icon { display: block; flex: none; overflow: visible; }
   .screen--lg .wx__now .value { line-height: 0.85; }
   .wx-screen { --wx-axis: 34px; }
   .wx__left { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; height: 100%; }
@@ -60,7 +60,7 @@
   {% when 'storm' %}
     <path d="M6.5 14.5h11a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 7.5a3.5 3.5 0 0 0 .2 7z"/><path d="M13 14.5l-3 4h4l-3 4"/>
   {% when 'fog' %}
-    <path d="M6.5 11h11a3.5 3.5 0 0 0 .3-7A5.5 5.5 0 0 0 6.6 5 3 3 0 0 0 6.5 11z"/><path d="M3 15h18M5 19h14"/>
+    <path d="M6.5 14.5h11a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 7.5a3.5 3.5 0 0 0 .2 7z"/><path d="M3 17.5h18M5 21h14"/>
   {% when 'wind' %}
     <path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h7"/>
   {% else %}
@@ -120,11 +120,15 @@
       {% endfor %}
     </div>
     {% endif %}
+    {% capture lohi %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
       <div class="wx__lohi"><span class="value value--xxsmall lg:value--xsmall">{{ day.lo }}°</span><span class="value value--xxsmall lg:value--xsmall font--bold">{{ day.hi }}°</span></div>
       {% endfor %}
     </div>
+    {% endcapture %}
+    {% comment %} Lows/highs sit above the chart under the day names, but below the lower charts so they can't be read as the upper chart's. {% endcomment %}
+    {% if show_dates %}{{ lohi }}{% endif %}
     <div class="wx__body">
       <div class="wx__axis">
         <span class="label label--small" style="top: 0%;">{{ chart.temp_max }}°</span>
@@ -148,6 +152,7 @@
         </svg>
       </div>
     </div>
+    {% unless show_dates %}{{ lohi }}{% endunless %}
     {% unless compact %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
