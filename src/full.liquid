@@ -1,8 +1,10 @@
 {% if locations.size > 0 %}
 <div class="layout layout--col layout--stretch wx-screen">
-  {% for loc in locations %}{% render "wx_location", loc: loc, compact: false, show_dates: forloop.first %}{% endfor %}
+  {% for loc in locations %}
+    {% if forloop.last %}{% assign updated = loc.updated %}{% else %}{% assign updated = "" %}{% endif %}
+    {% render "wx_location", loc: loc, compact: false, show_dates: forloop.first, updated: updated %}
+  {% endfor %}
 </div>
-{% render "wx_title_bar", locations: locations %}
 {% else %}
 {% render "wx_error", message: error %}
 {% endif %}

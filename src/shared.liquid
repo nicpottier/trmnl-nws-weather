@@ -6,7 +6,11 @@
   /* A little air above the top chart's dates. */
   .wx:first-child .wx__chart { padding-top: 3px; }
   .screen--lg .wx:first-child .wx__chart { padding-top: 6px; }
-  .wx__now { flex: 0 0 22%; display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 2px; }
+  .wx__now { position: relative; flex: 0 0 22%; display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 2px; }
+  /* "Updated 8:05 AM" sits in the bottom-left corner of the last location's column, below its centered content. */
+  .wx__now--updated .wx__left { padding-bottom: 16px; box-sizing: border-box; }
+  .screen--lg .wx__now--updated .wx__left { padding-bottom: 22px; }
+  .wx__updated { position: absolute; left: 0; bottom: 0; }
   .wx__chart { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
   .wx__row { display: flex; padding-left: var(--wx-axis); }
   .wx__row > * { flex: 1 1 0; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; white-space: nowrap; }
@@ -84,7 +88,8 @@
   One location: current conditions on the left; on the right a week-long chart with the hourly
   temperature line (and freezing line) over 6-hour snow and rain bars, daily highs/lows above
   it, and each day's snow/rain amounts below. Positions and paths come precomputed from the service.
-  Params: loc (one entry of locations), compact (true for the small layouts),
+  Params: loc (one entry of locations), compact (true for the small layouts), updated (when
+  set, an "Updated <time>" note under this location's left column; pass it for the last one),
   show_dates (the day names; stacked locations share them, so only the first shows them).
 {% endcomment %}
 {% template wx_location %}
@@ -96,7 +101,7 @@
 {% else %}
 {% assign chart = loc.chart %}
 <div class="wx{% if compact %} wx--compact{% endif %}">
-  <div class="wx__now">
+  <div class="wx__now{% if updated != blank %} wx__now--updated{% endif %}">
     {% if compact %}
       <span class="value value--small value--tnums">{{ loc.now.temp }}°</span>
       <span class="title title--small" data-clamp="1">{{ loc.location }}</span>
@@ -119,6 +124,7 @@
       {% if amounts != "" %}<span class="label label--small lg:label--base" data-clamp="1">{{ amounts }}</span>{% endif %}
       {{ alert }}
     </div>
+    {% if updated != blank %}<span class="wx__updated label label--small label--gray 1bit:text--black">Updated {{ updated }}</span>{% endif %}
   {% endunless %}
   </div>
 
@@ -174,18 +180,9 @@
 {% endif %}
 {% endtemplate %}
 
-{% template wx_title_bar %}
-<div class="title_bar">
-  <svg class="image" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M1.5 8H3M3.4 3.4l1 1M12.6 3.4l-1 1M3.4 12.6l1-1"/><path d="M9 21h8.5a3.5 3.5 0 0 0 .4-7A5 5 0 0 0 8.4 15 3 3 0 0 0 9 21z"/></svg>
-  <span class="title">NWS Forecast</span>
-  <span class="instance">{{ locations.first.today }} · {{ locations.first.updated }}</span>
-</div>
-{% endtemplate %}
-
 {% template wx_error %}
 <div class="layout layout--col layout--center">
   <span class="title">Weather unavailable</span>
   <span class="description">{{ message | default: "No data from the NWS forecast service yet." }}</span>
 </div>
-<div class="title_bar"><span class="title">NWS Forecast</span></div>
 {% endtemplate %}
