@@ -15,7 +15,12 @@
   .wx__axis > span { position: absolute; right: 6px; transform: translateY(-50%); }
   .wx__plot { position: relative; flex: 1 1 auto; border-bottom: 2px solid currentColor; }
   .wx__bars { position: absolute; inset: 0; display: flex; }
-  .wx__bars-day { flex: 1 1 0; display: flex; align-items: flex-end; gap: 2px; padding: 0 2px; }
+  .wx__bars-day { position: relative; flex: 1 1 0; display: flex; align-items: flex-end; gap: 2px; padding: 0 2px; }
+  /* Day lines belong to the bar groups, so they sit exactly midway between neighboring days' bars. */
+  .wx__bars-day + .wx__bars-day::before {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 1px; transform: translateX(-50%);
+    background: repeating-linear-gradient(to bottom, currentColor 0 2px, transparent 2px 6px);
+  }
   .wx__past { position: absolute; top: 0; bottom: 0; left: 0; }
   .wx__dot {
     position: absolute; right: 0; z-index: 2; width: 14px; height: 14px; border-radius: 50%;
@@ -149,10 +154,6 @@
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
         </div>
         <svg viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor">
-          {% for day in loc.days limit: chart.days offset: 1 %}
-            {% assign x = forloop.index | times: 1000 | divided_by: chart.days %}
-            <line x1="{{ x }}" y1="0" x2="{{ x }}" y2="100" stroke-width="1" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"/>
-          {% endfor %}
           {% if chart.freeze_y %}<line x1="0" y1="{{ chart.freeze_y }}" x2="1000" y2="{{ chart.freeze_y }}" stroke-width="1.5" stroke-dasharray="8 5" vector-effect="non-scaling-stroke"/>{% endif %}
           <path d="{{ chart.temp_path }}" stroke-width="3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
         </svg>
