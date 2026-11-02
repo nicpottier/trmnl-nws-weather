@@ -1,6 +1,8 @@
 <style>
   .wx { display: flex; flex: 1 1 0; min-height: 0; gap: 14px; }
-  .wx + .wx { padding-top: 12px; }
+  /* Room between stacked locations, so each one's lows/highs clearly belong to its own chart. */
+  .wx + .wx { padding-top: 18px; }
+  .screen--lg .wx + .wx { padding-top: 32px; }
   .wx__now { flex: 0 0 22%; display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 2px; }
   .wx__chart { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
   .wx__row { display: flex; padding-left: var(--wx-axis); }
@@ -20,8 +22,8 @@
   .wx__icon { display: block; flex: none; overflow: visible; }
   .screen--lg .wx__now .value { line-height: 0.85; }
   .wx-screen { --wx-axis: 34px; }
-  .wx__left { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 4px; height: 100%; }
-  .screen--lg .wx__left { gap: 6px; }
+  .wx__left { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 3px; height: 100%; }
+  .screen--lg .wx__left { gap: 5px; }
   .wx__ic--xl svg { width: 38px; height: 38px; display: block; }
   .screen--lg .wx__ic--xl svg { width: 120px; height: 120px; stroke-width: 1.2; }
   /* The high and low sit beside the current temperature, high level with its top, low with its bottom. */
@@ -120,15 +122,11 @@
       {% endfor %}
     </div>
     {% endif %}
-    {% capture lohi %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
       <div class="wx__lohi"><span class="value value--xxsmall lg:value--xsmall">{{ day.lo }}°</span><span class="value value--xxsmall lg:value--xsmall font--bold">{{ day.hi }}°</span></div>
       {% endfor %}
     </div>
-    {% endcapture %}
-    {% comment %} Lows/highs sit above the chart under the day names, but below the lower charts so they can't be read as the upper chart's. {% endcomment %}
-    {% if show_dates %}{{ lohi }}{% endif %}
     <div class="wx__body">
       <div class="wx__axis">
         <span class="label label--small" style="top: 0%;">{{ chart.temp_max }}°</span>
@@ -152,7 +150,6 @@
         </svg>
       </div>
     </div>
-    {% unless show_dates %}{{ lohi }}{% endunless %}
     {% unless compact %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
