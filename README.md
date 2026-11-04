@@ -44,16 +44,20 @@ match the NWS forecast text.
 The current temperature is a measured observation, not the forecast for this hour. It is taken from the first
 source with a reading less than 2 hours old:
 
-1. forecast.weather.gov's point-forecast JSON (`MapClick.php?FcstType=json`), the same feed behind the
+1. With `SYNOPTIC_TOKEN` set, the nearest [Synoptic Data](https://synopticdata.com) (MesoWest) station: for example
+   LVN11 in Leavenworth and STS40 (Schmidt Haus, 3,950 ft) at Stevens Pass. That station's readings since midnight
+   also draw the part of today's line that has already happened, and widen today's low/high to include them. NWS
+   forecasts start when they're issued, so without this the morning is often blank.
+2. forecast.weather.gov's point-forecast JSON (`MapClick.php?FcstType=json`), the same feed behind the
    "Current conditions" box on the NWS web page. For Leavenworth that is station LVN11. This endpoint is
    undocumented, but it's the only place LVN11 is current; api.weather.gov's copy of LVN11 has been days behind.
-2. The nearest api.weather.gov observation station with a fresh reading (e.g. KEAT, Wenatchee airport).
-3. The hourly forecast for the current hour.
+3. The nearest api.weather.gov observation station with a fresh reading (e.g. KEAT, Wenatchee airport).
+4. The hourly forecast for the current hour.
 
 A station whose elevation differs from the forecast point's by more than 300 m (about 1,000 ft) is skipped. Without
 this, Stevens Pass would show Skykomish's valley reading (SKKW1, 2,028 ft) instead of conditions at about 4,900 ft.
 
-The payload's `now.source` field says which one was used (`LVN11`, `KEAT`, … or `forecast`), and `now.observed_at`
+The payload's `now.source` field says which one was used (`LVN11`, `STS40`, `KEAT`, … or `forecast`), and `now.observed_at`
 gives the reading's local time.
 
 ## Layout
@@ -84,6 +88,8 @@ The service is the same code on either platform. Vercel is the easier one.
    - `ACCESS_TOKEN`: a random string, e.g. from `openssl rand -hex 16`. Requests must include `?token=` with it.
    - `NWS_USER_AGENT`: something with your contact, e.g. `trmnl-nws-weather (you@example.com)`. NWS asks API
      clients to identify themselves.
+   - `SYNOPTIC_TOKEN` (optional): a Synoptic Data token, for local station readings (see above). Create one from
+     your API key with `https://api.synopticdata.com/v2/auth?apikey=YOUR_KEY`, or in Synoptic's account console.
 4. Click **Deploy**. Your service URL is the production domain, e.g. `https://trmnl-nws-weather.vercel.app/`.
    Every push to `main` redeploys it.
 

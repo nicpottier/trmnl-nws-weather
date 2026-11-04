@@ -3,6 +3,8 @@ package forecast
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -85,6 +87,21 @@ func fakeNWS(t *testing.T, dropPeriods int) *httptest.Server {
 			v = read("mapclick.json") // LVN11, 35°F at 7:00 AM PDT
 		case r.URL.Path == "/stations":
 			v = read("stations.json") // LVN11, TDRYD, TBLEW, STS54, KEAT
+		case r.URL.Path == "/synoptic/stations/timeseries":
+			// LVN11 (1190 ft, at the point) reporting hourly 1-7 AM PDT, and a stale higher station.
+			obs := map[string]any{"date_time": []string{}, "air_temp_set_1": []any{}}
+			for h := 8; h <= 14; h++ {
+				obs["date_time"] = append(obs["date_time"].([]string), fmt.Sprintf("2026-10-25T%02d:00:00Z", h))
+				obs["air_temp_set_1"] = append(obs["air_temp_set_1"].([]any), 30.0+float64(h-8))
+			}
+			v = map[string]any{
+				"SUMMARY": map[string]any{"RESPONSE_CODE": 1, "RESPONSE_MESSAGE": "OK"},
+				"STATION": []any{
+					map[string]any{"STID": "TUM42", "NAME": "Tumwater Mountain", "ELEVATION": "4180", "DISTANCE": 3.0,
+						"OBSERVATIONS": map[string]any{"date_time": []string{"2026-10-25T14:00:00Z"}, "air_temp_set_1": []any{20.0}}},
+					map[string]any{"STID": "LVN11", "NAME": "Leavenworth", "ELEVATION": "1190.0", "DISTANCE": 0.5, "OBSERVATIONS": obs},
+				},
+			}
 		case strings.HasPrefix(r.URL.Path, "/stations/"):
 			id := strings.Split(r.URL.Path, "/")[2]
 			if id != "KEAT" {
@@ -300,7 +317,7 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 
 	// auto: rain buckets as rain bars, snow buckets as snow bars, on fixed scales where half
 	// height is 0.3″ of rain or 3″ of snow per 6 hours: 0.5″ of rain is 83.3%, 1″ of snow 16.7%.
-	c := buildChart(&grid, days, loc, now, "us", "auto")
+	c := buildChart(&grid, days, loc, now, "us", "auto", nil)
 	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
@@ -320,21 +337,21 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 
 	// snow: snowfall only.
 	days = make([]Day, 3)
-	c = buildChart(&grid, days, loc, now, "us", "snow")
+	c = buildChart(&grid, days, loc, now, "us", "snow", nil)
 	if c.Bars[3] != (Bar{}) || c.Bars[6].Kind != "snow" || len(days[0].Amounts) != 0 || c.Label != "Snow 2.0″" {
 		t.Errorf("snow-only chart = %+v, days %+v", c, days)
 	}
 
 	// precip: all liquid, snow included as water (0.1″ per bucket), on the rain scale.
 	days = make([]Day, 3)
-	c = buildChart(&grid, days, loc, now, "us", "precip")
+	c = buildChart(&grid, days, loc, now, "us", "precip", nil)
 	if c.Bars[3].Height != 83.3 || c.Bars[6] != (Bar{16.7, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
 		!reflect.DeepEqual(days[1].Amounts, []string{"0.20″ precip"}) {
 		t.Errorf("precip chart = %+v, days %+v", c, days)
 	}
 
 	days = make([]Day, 3)
-	c = buildChart(&grid, days, loc, now, "si", "auto")
+	c = buildChart(&grid, days, loc, now, "si", "auto", nil)
 	if c.TempMin != -10 || c.Freeze != "0°" || c.Label != "Snow 5.1cm · Rain 12.7mm" ||
 		!reflect.DeepEqual(days[0].Amounts, []string{"12.7mm rain"}) {
 		t.Errorf("metric chart label %q, days %+v", c.Label, days)
@@ -422,7 +439,7 @@ func TestTotalsMatchDayLabels(t *testing.T) {
 	}
 	loc, _ := time.LoadLocation("America/Los_Angeles")
 	days := make([]Day, 3)
-	c := buildChart(&grid, days, loc, time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC), "us", "auto")
+	c := buildChart(&grid, days, loc, time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC), "us", "auto", nil)
 	if days[0].Rain != "0.08″" || c.Label != "Rain 0.24″" {
 		t.Errorf("day %q, label %q", days[0].Rain, c.Label)
 	}
@@ -488,5 +505,84 @@ func TestCurrentIcon(t *testing.T) {
 		if got := currentIcon(tc.icon, tc.short, chart(tc.snow, tc.rain), tc.temp, "us"); got != tc.want {
 			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestPickStation(t *testing.T) {
+	now := time.Date(2026, 11, 4, 5, 0, 0, 0, time.UTC)
+	fresh, stale := []time.Time{now.Add(-30 * time.Minute)}, []time.Time{now.Add(-3 * time.Hour)}
+	series := []stationSeries{
+		{ID: "STALE", ElevationFt: 3950, Times: stale, TempF: []float64{30}},
+		{ID: "LOW", ElevationFt: 2028, Times: fresh, TempF: []float64{45}},
+		{ID: "STS40", ElevationFt: 3950, Times: fresh, TempF: []float64{35}},
+	}
+	// Stevens Pass's grid point is ~1487 m (4880 ft): skip the stale and the far-lower stations.
+	if s := pickStation(series, 1487, now); s == nil || s.ID != "STS40" {
+		t.Errorf("picked %+v", s)
+	}
+	if s := pickStation(series[:2], 1487, now); s != nil {
+		t.Errorf("expected none, picked %s", s.ID)
+	}
+	// Unknown point elevation: the nearest fresh station.
+	if s := pickStation(series, math.NaN(), now); s == nil || s.ID != "LOW" {
+		t.Errorf("picked %+v", s)
+	}
+}
+
+func TestMergeObserved(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	now := time.Date(2026, 11, 3, 18, 0, 0, 0, time.UTC) // 10 AM PST
+	var grid GridData
+	// The forecast starts at 10 AM local (18:00Z), as NWS's do when issued mid-morning.
+	if err := json.Unmarshal([]byte(`{"properties":{"temperature":{"values":[
+		{"validTime":"2026-11-03T18:00:00+00:00/PT6H","value":10}]}}}`), &grid); err != nil {
+		t.Fatal(err)
+	}
+	obs := &stationSeries{ID: "LVN11"}
+	for h := 0; h < 10; h++ { // midnight-9 AM local readings, every 30 minutes
+		for _, m := range []int{0, 30} {
+			obs.Times = append(obs.Times, time.Date(2026, 11, 3, h, m, 0, 0, loc))
+			obs.TempF = append(obs.TempF, 30+float64(h))
+		}
+	}
+	c := buildChart(&grid, make([]Day, 1), loc, now, "us", "auto", obs)
+	if len(c.samples) < 12 {
+		t.Fatalf("samples = %v", c.samples)
+	}
+	first := c.samples[0]
+	if math.Abs(first.x-1000*0.5/24) > 0.01 || first.t != 30 {
+		t.Errorf("first sample = %+v, want 12:30 AM at 30°F", first)
+	}
+	// Past hours come from the station, then the latest reading, then the forecast (50°F).
+	if got := c.samples[9]; got.t != 39 || c.samples[10].t != 39 || c.samples[11].t != 50 {
+		t.Errorf("samples around now = %+v %+v %+v", c.samples[9], c.samples[10], c.samples[11])
+	}
+	if c.NowY == nil {
+		t.Error("now_y not set")
+	}
+}
+
+func TestBuildGlanceWithSynoptic(t *testing.T) {
+	srv := fakeNWS(t, 0)
+	oldNWS, oldForecast, oldSyn, oldTok := nwsBase, forecastBase, synopticBase, synopticToken
+	nwsBase, forecastBase, synopticBase, synopticToken = srv.URL, srv.URL, srv.URL+"/synoptic", "test-token"
+	t.Cleanup(func() { nwsBase, forecastBase, synopticBase, synopticToken = oldNWS, oldForecast, oldSyn, oldTok })
+
+	now := time.Date(2026, 10, 25, 14, 45, 0, 0, time.UTC) // 7:45 AM PDT
+	g, err := BuildGlance(context.Background(), newNWSClient(), Options{Lat: 47.5962, Lon: -120.6615, Units: "us", Days: 7}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// TUM42 is closer but 3,000 ft higher, so LVN11's 7 AM reading (36°F) wins.
+	if g.Now.Source != "LVN11" || g.Now.Temp != 36 || g.Now.ObservedAt != "7:00 AM" {
+		t.Errorf("now = %+v", g.Now)
+	}
+	// Today's 30-36°F readings pull the forecast's low (34°) down to 30°; the high (55°) stands.
+	if g.Days[0].Lo != 30 || g.Days[0].Hi != 55 {
+		t.Errorf("today lo/hi = %d/%d", g.Days[0].Lo, g.Days[0].Hi)
+	}
+	// The line now starts at 1:30 AM (the first full hour of readings) instead of the forecast's start.
+	if x := g.Chart.samples[0].x; math.Abs(x-1000*1.5/(24*7)) > 0.01 {
+		t.Errorf("first sample x = %v", x)
 	}
 }

@@ -83,12 +83,20 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		alerts             []Alert
 		grid               *GridData
 		periodsErr, hrsErr error
+		stations           []stationSeries
 	)
-	wg.Add(4)
+	// Station readings since local midnight (plus an hour, for the first hourly average).
+	since := now.Add(-25 * time.Hour)
+	if tz, err := time.LoadLocation(pp.TimeZone); err == nil {
+		l := now.In(tz)
+		since = time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, tz).Add(-time.Hour)
+	}
+	wg.Add(5)
 	go func() { defer wg.Done(); periods, periodsErr = nws.Forecast(ctx, pp.Forecast, opts.Units) }()
 	go func() { defer wg.Done(); hourly, hrsErr = nws.Forecast(ctx, pp.ForecastHourly, opts.Units) }()
 	go func() { defer wg.Done(); alerts, _ = nws.Alerts(ctx, opts.Lat, opts.Lon) }()
 	go func() { defer wg.Done(); grid, _ = nws.GridData(ctx, pp.ForecastGridData) }() // chart is optional
+	go func() { defer wg.Done(); stations, _ = nws.synopticSeries(ctx, opts.Lat, opts.Lon, since, now) }()
 	wg.Wait()
 
 	if periodsErr != nil {
@@ -121,7 +129,14 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	if grid != nil && grid.Properties.Elevation.Value != nil {
 		pointElevM = *grid.Properties.Elevation.Value
 	}
-	if obs, err := nws.CurrentObservation(ctx, opts.Lat, opts.Lon, points, pointElevM, loc, now); err == nil {
+	station := pickStation(stations, pointElevM, now)
+	obs, err := (*Observation)(nil), error(nil)
+	if station != nil {
+		obs = station.latest()
+	} else {
+		obs, err = nws.CurrentObservation(ctx, opts.Lat, opts.Lon, points, pointElevM, loc, now)
+	}
+	if err == nil && obs != nil {
 		nowTemp, source, observedAt = fToUnits(obs.TempF, opts.Units), obs.Station, obs.ObservedAt.In(loc).Format("3:04 PM")
 		if obs.Humidity != nil {
 			humidity = *obs.Humidity
@@ -129,6 +144,9 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	}
 
 	days := buildDays(periods, hourly, loc, opts.Days)
+	if station != nil && len(days) > 0 {
+		includeObserved(&days[0], station, localNow, opts.Units)
+	}
 
 	nowIcon, _ := classify(hour.ShortForecast, hour.Pop())
 	if !hour.IsDaytime {
@@ -154,7 +172,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 
 	var chart *Chart
 	if grid != nil && len(days) > 0 {
-		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars)
+		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars, station)
 		nowIcon = currentIcon(nowIcon, hour.ShortForecast, chart, nowTemp, opts.Units)
 	}
 
@@ -243,6 +261,20 @@ func currentIcon(icon, short string, c *Chart, temp int, units string) string {
 		return "flurries"
 	}
 	return icon // sky (clear, partly, cloudy, ...) or a freezing mix, with nothing measurable today
+}
+
+// includeObserved widens today's low and high to cover what a station has measured since
+// midnight: late in the day the forecast only covers what's left, so its "high" can be well
+// below the afternoon that already happened.
+func includeObserved(today *Day, s *stationSeries, localNow time.Time, units string) {
+	midnight := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, localNow.Location())
+	for i, t := range s.Times {
+		if t.Before(midnight) {
+			continue
+		}
+		v := fToUnits(s.TempF[i], units)
+		today.Hi, today.Lo = max(today.Hi, v), min(today.Lo, v)
+	}
 }
 
 func trend(hourly []Period, hour *Period, nowTemp int) string {

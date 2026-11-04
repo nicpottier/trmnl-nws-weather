@@ -145,7 +145,7 @@ const barHours = 6
 
 // buildChart lays out days*24 hours starting at local midnight today, and fills each Day's
 // snow/precip totals. barMode is "auto", "snow" or "precip".
-func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, units, barMode string) *Chart {
+func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, units, barMode string, obs *stationSeries) *Chart {
 	n := len(days)
 	local := now.In(loc)
 	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
@@ -170,6 +170,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 			c.samples = append(c.samples, sample{xOf(t), temp})
 		}
 	}
+	c.mergeObserved(obs, start, now, xOf, units)
 	c.freeze = 32
 	if units == "si" {
 		c.freeze, c.Freeze = 0, "0°"
@@ -311,6 +312,43 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, 
 	if c.Label == "" {
 		c.Label = "No precipitation"
 	}
+}
+
+// mergeObserved replaces the forecast for hours already past with a station's hourly readings.
+// NWS forecasts start when they're issued, which can leave the morning blank; the readings
+// also show what actually happened. The line runs through the latest reading into the forecast.
+func (c *Chart) mergeObserved(obs *stationSeries, start, now time.Time, xOf func(time.Time) float64, units string) {
+	if obs == nil || len(obs.Times) == 0 {
+		return
+	}
+	toUnits := func(f float64) float64 {
+		if units == "si" {
+			return (f - 32) * 5 / 9
+		}
+		return f
+	}
+	hours := obs.hourly()
+	past := []sample{}
+	for t := start; t.Before(now); t = t.Add(time.Hour) {
+		mid := t.Add(30 * time.Minute)
+		if v, ok := hours[t.Unix()]; ok && mid.Before(now) {
+			past = append(past, sample{xOf(mid), toUnits(v)})
+		}
+	}
+	last := obs.latest()
+	if !last.ObservedAt.Before(start) {
+		past = append(past, sample{xOf(last.ObservedAt), toUnits(last.TempF)})
+	}
+	if len(past) == 0 {
+		return
+	}
+	nowX := xOf(now)
+	for _, s := range c.samples {
+		if s.x >= nowX {
+			past = append(past, s)
+		}
+	}
+	c.samples = past
 }
 
 // tempRange returns the chart's temperature extremes, rounded out to a multiple of 5 so the
