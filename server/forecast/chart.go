@@ -143,12 +143,15 @@ type sample struct {
 
 const barHours = 6
 
-// buildChart lays out days*24 hours starting at local midnight today, and fills each Day's
-// snow/precip totals. barMode is "auto", "snow" or "precip".
-func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, units, barMode string, obs *stationSeries) *Chart {
+// buildChart lays out days*24 hours starting at local midnight `back` days before today, and
+// fills each Day's snow/precip totals. barMode is "auto", "snow" or "precip". With station
+// data, hours already past are drawn from obs (temperatures) and seen (snow and rain).
+func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, units, barMode string,
+	obs *stationSeries, seen *observed, back int) *Chart {
 	n := len(days)
 	local := now.In(loc)
-	start := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+	start := today.AddDate(0, 0, -back)
 	end := start.AddDate(0, 0, n)
 	span := float64(end.Sub(start))
 	xOf := func(t time.Time) float64 { return float64(t.Sub(start)) / span * 1000 }
@@ -179,7 +182,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 		c.setScale(lo, hi)
 	}
 
-	c.fillBars(grid, days, start, end, now, units, barMode)
+	c.fillBars(grid, days, start, end, today, now, units, barMode, seen)
 	return c
 }
 
@@ -188,6 +191,8 @@ type Bar struct {
 	Height float64 `json:"h"`     // 0-100 % of the chart height, against its kind's scale
 	Kind   string  `json:"kind"`  // "snow", "rain", or "" for none
 	Shade  string  `json:"shade"` // Framework bg-- shade
+	// Observed marks a bar measured at nearby stations rather than forecast.
+	Observed bool `json:"observed"`
 }
 
 var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
@@ -213,13 +218,18 @@ func barHeight(amount, half float64) float64 {
 // bucket is a rain bar (inches of liquid), each on its fixed scale, so a mountain pass
 // shows both its rain days and its snow days. "snow" shows only snowfall, and "precip" shows
 // all liquid precipitation (snow included, as water) as rain bars.
-func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, units, mode string) {
+//
+// With seen, the blocks that have already ended use what the stations measured instead: new
+// snow from snow-depth rises and rain from the precipitation gauges (see observed).
+func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time.Time, units, mode string, seen *observed) {
 	snowIvs := grid.Properties.SnowfallAmount.intervals()
 	precipIvs := grid.Properties.QuantitativePrecipitation.intervals()
-	snowConv, rainConv := 1/25.4, 1/25.4 // mm -> in
+	snowConv, rainConv := 1/25.4, 1/25.4 // forecast mm -> in
+	obsSnowConv, obsRainConv := 1.0, 1.0 // observed inches -> display units
 	snowHalf, rainHalf := snowHalfIn, rainHalfIn
 	if units == "si" {
 		snowConv, rainConv = 0.1, 1 // mm -> cm, mm
+		obsSnowConv, obsRainConv = 2.54, 25.4
 		snowHalf, rainHalf = snowHalfCm, rainHalfMm
 	}
 	if mode != "snow" && mode != "precip" {
@@ -227,7 +237,10 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, 
 	}
 	c.BarKind = mode
 
-	type bucket struct{ snow, rain float64 }
+	type bucket struct {
+		snow, rain float64
+		observed   bool
+	}
 	buckets := []bucket{}
 	anyAmount := false
 	for t := start; t.Before(end); t = t.Add(barHours * time.Hour) {
@@ -235,6 +248,11 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, 
 		sn := amountBetween(snowIvs, t, next) * snowConv
 		pr := amountBetween(precipIvs, t, next) * rainConv
 		b := bucket{}
+		if seen != nil && !next.After(now) {
+			sn = seen.snow(t, next, barSnowMinRise) * obsSnowConv
+			pr = seen.rain(t, next) * obsRainConv
+			b.observed = true
+		}
 		switch {
 		case mode == "precip":
 			b.rain = pr
@@ -253,9 +271,9 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, 
 		bar := Bar{}
 		switch {
 		case b.snow > 0:
-			bar = Bar{barHeight(b.snow, snowHalf), "snow", barShades["snow"]}
+			bar = Bar{barHeight(b.snow, snowHalf), "snow", barShades["snow"], b.observed}
 		case b.rain > 0:
-			bar = Bar{barHeight(b.rain, rainHalf), "rain", barShades["rain"]}
+			bar = Bar{barHeight(b.rain, rainHalf), "rain", barShades["rain"], b.observed}
 		}
 		c.Bars = append(c.Bars, bar)
 	}
@@ -295,8 +313,9 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, now time.Time, 
 
 	// What's still to come today (the block we're in counts), for the current-conditions icon.
 	c.flurries, c.sprinkles = flurries, sprinkles
-	for k, b := range buckets[:min(perDay, len(buckets))] {
-		if start.Add(time.Duration(k+1) * barHours * time.Hour).After(now) {
+	for k, b := range buckets {
+		from := start.Add(time.Duration(k) * barHours * time.Hour)
+		if from.Add(barHours*time.Hour).After(now) && from.Before(today.AddDate(0, 0, 1)) {
 			c.restSnow, c.restRain = c.restSnow+b.snow, c.restRain+b.rain
 		}
 	}

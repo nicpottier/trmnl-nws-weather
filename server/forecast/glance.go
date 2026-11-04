@@ -20,6 +20,8 @@ type Glance struct {
 	Outlook     string  `json:"outlook"`
 	OutlookName string  `json:"outlook_name"`
 	Days        []Day   `json:"days"`
+	TodayIndex  int     `json:"today_index"` // days[today_index] is today; earlier days are measured
+	FreshSnow   string  `json:"fresh_snow"`  // measured new snow, e.g. "New snow 3″ 24h · 7″ 48h", or ""
 	Alerts      []Alert `json:"alerts"`
 	Scale       Scale   `json:"scale"`
 	Chart       *Chart  `json:"chart,omitempty"`
@@ -85,11 +87,12 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		periodsErr, hrsErr error
 		stations           []stationSeries
 	)
-	// Station readings since local midnight (plus an hour, for the first hourly average).
-	since := now.Add(-25 * time.Hour)
+	// Station readings since yesterday's local midnight (plus an hour, for the first hourly
+	// average), and at least the 48 hours the fresh-snow total covers.
+	since := now.Add(-49 * time.Hour)
 	if tz, err := time.LoadLocation(pp.TimeZone); err == nil {
 		l := now.In(tz)
-		since = time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, tz).Add(-time.Hour)
+		since = minTime(since, time.Date(l.Year(), l.Month(), l.Day()-1, 0, 0, 0, 0, tz).Add(-time.Hour))
 	}
 	wg.Add(5)
 	go func() { defer wg.Done(); periods, periodsErr = nws.Forecast(ctx, pp.Forecast, opts.Units) }()
@@ -143,10 +146,25 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		}
 	}
 
-	days := buildDays(periods, hourly, loc, opts.Days)
-	if station != nil && len(days) > 0 {
-		includeObserved(&days[0], station, localNow, opts.Units)
+	// With a day of station readings, the chart starts yesterday, drawn from what was measured,
+	// and shows one forecast day fewer.
+	back := 0
+	days := []Day{}
+	midnight := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, loc)
+	if station != nil && opts.Days > 1 {
+		if d, ok := observedDay(station, midnight.AddDate(0, 0, -1), opts.Units); ok {
+			days, back = append(days, d), 1
+		}
 	}
+	forecastDays := buildDays(periods, hourly, loc, opts.Days-back)
+	if len(forecastDays) == 0 {
+		days, back = forecastDays, 0
+	}
+	days = append(days, forecastDays...)
+	if station != nil && len(days) > back {
+		includeObserved(&days[back], station, localNow, opts.Units)
+	}
+	seen := newObserved(stations, pointElevM)
 
 	nowIcon, _ := classify(hour.ShortForecast, hour.Pop())
 	if !hour.IsDaytime {
@@ -172,7 +190,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 
 	var chart *Chart
 	if grid != nil && len(days) > 0 {
-		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars, station)
+		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars, station, seen, back)
 		nowIcon = currentIcon(nowIcon, hour.ShortForecast, chart, nowTemp, opts.Units)
 	}
 
@@ -210,6 +228,8 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		Outlook:     periods[0].DetailedForecast,
 		OutlookName: periods[0].Name,
 		Days:        days,
+		TodayIndex:  back,
+		FreshSnow:   freshSnow(seen, now, opts.Units),
 		Alerts:      alerts[:min(len(alerts), 3)],
 		Scale:       Scale{Min: lo, Max: hi},
 		Chart:       chart,
@@ -275,6 +295,56 @@ func includeObserved(today *Day, s *stationSeries, localNow time.Time, units str
 		v := fToUnits(s.TempF[i], units)
 		today.Hi, today.Lo = max(today.Hi, v), min(today.Lo, v)
 	}
+}
+
+// observedDay builds a past day's entry from a station's readings, if they cover most of it.
+func observedDay(s *stationSeries, from time.Time, units string) (Day, bool) {
+	to := from.AddDate(0, 0, 1)
+	hours := map[int64]bool{}
+	hi, lo := math.MinInt, math.MaxInt
+	for i, t := range s.Times {
+		if t.Before(from) || !t.Before(to) {
+			continue
+		}
+		hours[t.Truncate(time.Hour).Unix()] = true
+		v := fToUnits(s.TempF[i], units)
+		hi, lo = max(hi, v), min(lo, v)
+	}
+	if len(hours) < 18 {
+		return Day{}, false
+	}
+	return Day{
+		Dow:   from.Format("Mon"),
+		Date:  from.Day(),
+		Label: from.Format("Mon 2"),
+		Name:  "Yesterday",
+		Hi:    hi,
+		Lo:    lo,
+		Shade: shades[0],
+	}, true
+}
+
+// freshSnow describes the snow measured in the last 24 and 48 hours, for places with snow-depth
+// stations that either have snow on the ground or had some fall.
+func freshSnow(o *observed, now time.Time, units string) string {
+	if o == nil || len(o.depths) == 0 {
+		return ""
+	}
+	d1 := o.snow(now.Add(-24*time.Hour), now, freshSnowMinRise)
+	d2 := math.Max(d1, o.snow(now.Add(-48*time.Hour), now, freshSnowMinRise))
+	if d2 == 0 {
+		if o.hasSnowpack() {
+			return "No new snow in 48h"
+		}
+		return ""
+	}
+	f := func(in float64) string {
+		if units == "si" {
+			return fmt.Sprintf("%.0fcm", in*2.54)
+		}
+		return fmt.Sprintf("%.0f″", in)
+	}
+	return fmt.Sprintf("New snow %s 24h · %s 48h", f(d1), f(d2))
 }
 
 func trend(hourly []Period, hour *Period, nowTemp int) string {

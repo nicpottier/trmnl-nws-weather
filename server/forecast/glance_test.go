@@ -317,11 +317,11 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 
 	// auto: rain buckets as rain bars, snow buckets as snow bars, on fixed scales where half
 	// height is 0.3″ of rain or 3″ of snow per 6 hours: 0.5″ of rain is 83.3%, 1″ of snow 16.7%.
-	c := buildChart(&grid, days, loc, now, "us", "auto", nil)
+	c := buildChart(&grid, days, loc, now, "us", "auto", nil, nil, 0)
 	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
-	want := map[int]Bar{3: {83.3, "rain", "gray-55"}, 6: {16.7, "snow", "gray-35"}, 7: {16.7, "snow", "gray-35"}}
+	want := map[int]Bar{3: {83.3, "rain", "gray-55", false}, 6: {16.7, "snow", "gray-35", false}, 7: {16.7, "snow", "gray-35", false}}
 	for i, b := range c.Bars {
 		if b != want[i] {
 			t.Errorf("bar %d = %+v, want %+v", i, b, want[i])
@@ -337,21 +337,21 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 
 	// snow: snowfall only.
 	days = make([]Day, 3)
-	c = buildChart(&grid, days, loc, now, "us", "snow", nil)
+	c = buildChart(&grid, days, loc, now, "us", "snow", nil, nil, 0)
 	if c.Bars[3] != (Bar{}) || c.Bars[6].Kind != "snow" || len(days[0].Amounts) != 0 || c.Label != "Snow 2.0″" {
 		t.Errorf("snow-only chart = %+v, days %+v", c, days)
 	}
 
 	// precip: all liquid, snow included as water (0.1″ per bucket), on the rain scale.
 	days = make([]Day, 3)
-	c = buildChart(&grid, days, loc, now, "us", "precip", nil)
-	if c.Bars[3].Height != 83.3 || c.Bars[6] != (Bar{16.7, "rain", "gray-55"}) || c.Label != "Precip 0.70″" ||
+	c = buildChart(&grid, days, loc, now, "us", "precip", nil, nil, 0)
+	if c.Bars[3].Height != 83.3 || c.Bars[6] != (Bar{16.7, "rain", "gray-55", false}) || c.Label != "Precip 0.70″" ||
 		!reflect.DeepEqual(days[1].Amounts, []string{"0.20″ precip"}) {
 		t.Errorf("precip chart = %+v, days %+v", c, days)
 	}
 
 	days = make([]Day, 3)
-	c = buildChart(&grid, days, loc, now, "si", "auto", nil)
+	c = buildChart(&grid, days, loc, now, "si", "auto", nil, nil, 0)
 	if c.TempMin != -10 || c.Freeze != "0°" || c.Label != "Snow 5.1cm · Rain 12.7mm" ||
 		!reflect.DeepEqual(days[0].Amounts, []string{"12.7mm rain"}) {
 		t.Errorf("metric chart label %q, days %+v", c.Label, days)
@@ -439,7 +439,7 @@ func TestTotalsMatchDayLabels(t *testing.T) {
 	}
 	loc, _ := time.LoadLocation("America/Los_Angeles")
 	days := make([]Day, 3)
-	c := buildChart(&grid, days, loc, time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC), "us", "auto", nil)
+	c := buildChart(&grid, days, loc, time.Date(2026, 10, 25, 15, 0, 0, 0, time.UTC), "us", "auto", nil, nil, 0)
 	if days[0].Rain != "0.08″" || c.Label != "Rain 0.24″" {
 		t.Errorf("day %q, label %q", days[0].Rain, c.Label)
 	}
@@ -545,7 +545,7 @@ func TestMergeObserved(t *testing.T) {
 			obs.TempF = append(obs.TempF, 30+float64(h))
 		}
 	}
-	c := buildChart(&grid, make([]Day, 1), loc, now, "us", "auto", obs)
+	c := buildChart(&grid, make([]Day, 1), loc, now, "us", "auto", obs, nil, 0)
 	if len(c.samples) < 12 {
 		t.Fatalf("samples = %v", c.samples)
 	}
@@ -584,5 +584,161 @@ func TestBuildGlanceWithSynoptic(t *testing.T) {
 	// The line now starts at 1:30 AM (the first full hour of readings) instead of the forecast's start.
 	if x := g.Chart.samples[0].x; math.Abs(x-1000*1.5/(24*7)) > 0.01 {
 		t.Errorf("first sample x = %v", x)
+	}
+}
+
+// A week of real Stevens Pass readings (Oct 27 - Nov 3, 2026): Grace Lakes measured a ~7″ storm
+// on Oct 28, Brooks' depth sensor read 270″ for three days, Schmidt Haus' gauge read zero all
+// week, and sunny afternoons nudged depths up an inch at 35-45°F.
+func TestObservedRealStevensWeek(t *testing.T) {
+	b, err := os.ReadFile("testdata/synoptic_stevens_week.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &synopticResponse{}
+	if err := json.Unmarshal(b, r); err != nil {
+		t.Fatal(err)
+	}
+	series := []stationSeries{}
+	for _, s := range r.Station {
+		ss := stationSeries{ID: s.STID}
+		ss.ElevationFt, _ = s.Elevation.Float64()
+		o := s.Observations
+		val := func(v []*float64, i int) *float64 {
+			if i < len(v) {
+				return v[i]
+			}
+			return nil
+		}
+		for i, tm := range o.DateTime {
+			if v := val(o.AirTemp, i); v != nil {
+				ss.Times, ss.TempF = append(ss.Times, tm), append(ss.TempF, *v)
+			}
+			if v := val(o.SnowDepth, i); v != nil {
+				ss.Depth = append(ss.Depth, reading{tm, *v})
+			}
+			if v := val(o.Precip, i); v != nil {
+				ss.Precip = append(ss.Precip, reading{tm, *v})
+			}
+		}
+		series = append(series, ss)
+	}
+	o := newObserved(series, 1487)
+	if o == nil || len(o.gauges) != 2 || !o.hasSnowpack() {
+		t.Fatalf("observed = %+v", o)
+	}
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	day := func(d int) (time.Time, time.Time) {
+		a := time.Date(2026, 10, d, 0, 0, 0, 0, loc)
+		return a, a.AddDate(0, 0, 1)
+	}
+	if a, b := day(28); math.Abs(o.snow(a, b, barSnowMinRise)-6.9) > 0.3 || math.Abs(o.rain(a, b)-0.36) > 0.02 {
+		t.Errorf("Oct 28: snow %.1f, rain %.2f; want ~6.9″ and 0.36″", o.snow(a, b, barSnowMinRise), o.rain(a, b))
+	}
+	// Warm, dry afternoons: no snow.
+	for _, d := range []int{33, 34} { // Nov 2, Nov 3
+		if a, b := day(d); o.snow(a, b, barSnowMinRise) != 0 {
+			t.Errorf("Oct %d (Nov): snow %.1f, want 0", d, o.snow(a, b, barSnowMinRise))
+		}
+	}
+	noon29 := time.Date(2026, 10, 29, 12, 0, 0, 0, loc)
+	if f := o.snow(noon29.Add(-48*time.Hour), noon29, freshSnowMinRise); math.Abs(f-7.1) > 0.3 {
+		t.Errorf("fresh 48h at Oct 29 noon = %.1f, want ~7.1", f)
+	}
+
+	// A chart starting the day before Oct 29 noon: Oct 28 is measured, outlined bars and all.
+	// It all fell before Oct 28 noon.
+	if f := freshSnow(o, noon29, "us"); f != "New snow 0″ 24h · 7″ 48h" {
+		t.Errorf("freshSnow = %q", f)
+	}
+	var st *stationSeries
+	for i := range series {
+		if series[i].ID == "STS40" {
+			st = &series[i]
+		}
+	}
+	yday, ok := observedDay(st, time.Date(2026, 10, 28, 0, 0, 0, 0, loc), "us")
+	if !ok || yday.Dow != "Wed" || yday.Hi <= yday.Lo {
+		t.Fatalf("observedDay = %+v, %v", yday, ok)
+	}
+	days := []Day{yday, {}, {}}
+	c := buildChart(&GridData{}, days, loc, noon29, "us", "auto", st, o, 1)
+	if c.Days != 3 || math.Abs(c.NowX-500) > 0.1 {
+		t.Errorf("chart days %d, now %.1f", c.Days, c.NowX)
+	}
+	for k, bar := range c.Bars {
+		if past := k < 6; bar.Observed != (past && bar.Kind != "") {
+			t.Errorf("bar %d = %+v", k, bar)
+		}
+	}
+	if len(days[0].Amounts) == 0 || !strings.Contains(days[0].Amounts[0], "snow") {
+		t.Errorf("Oct 28 amounts = %v", days[0].Amounts)
+	}
+}
+
+func TestDepthRiseIgnoresFaults(t *testing.T) {
+	at := func(h int) time.Time { return time.Date(2026, 11, 1, h, 0, 0, 0, time.UTC) }
+	raw := []reading{}
+	for h := 0; h < 12; h++ {
+		v := 10.0
+		switch {
+		case h == 3:
+			v = 30 // single-hour spike
+		case h >= 8:
+			v = 270 // sensor jumps to a bogus level and stays there
+		}
+		raw = append(raw, reading{at(h), v})
+	}
+	d := depthSeries{depth: smoothDepth(raw)}
+	if r := depthRise(d, at(0), at(11)); r != 0 {
+		t.Errorf("rise = %v, want 0 (spike and level jump are faults)", r)
+	}
+	// A real 4″ storm over four hours at 28°F counts; the same rise at 40°F doesn't.
+	storm := []reading{}
+	temps := map[int64]float64{}
+	for h := 0; h < 10; h++ {
+		storm = append(storm, reading{at(h), 10 + math.Min(math.Max(float64(h-2), 0), 4)})
+		temps[at(h).Unix()] = 28
+	}
+	if r := depthRise(depthSeries{smoothDepth(storm), temps}, at(0), at(9)); r != 4 {
+		t.Errorf("storm rise = %v, want 4", r)
+	}
+	for k := range temps {
+		temps[k] = 40
+	}
+	if r := depthRise(depthSeries{smoothDepth(storm), temps}, at(0), at(9)); r != 0 {
+		t.Errorf("warm rise = %v, want 0", r)
+	}
+}
+
+func TestSnowNeedsTwoStations(t *testing.T) {
+	at := func(h int) time.Time { return time.Date(2026, 11, 1, h, 0, 0, 0, time.UTC) }
+	series := func(id string, f func(h int) float64) stationSeries {
+		s := stationSeries{ID: id, ElevationFt: 4000}
+		for h := 0; h < 24; h++ {
+			s.Times, s.TempF = append(s.Times, at(h)), append(s.TempF, 30)
+			s.Depth = append(s.Depth, reading{at(h), f(h)})
+		}
+		return s
+	}
+	flat := func(int) float64 { return 5 }
+	storm := func(h int) float64 { return 5 + 0.3*float64(max(0, min(h, 18)-6)) } // 3.6″ by 6 PM
+	toggling := func(h int) float64 { return float64(1 + (h/3)%2) }               // whole inches, 1 ↔ 2
+	noisy := func(h int) float64 { return 6 + 7*float64(h%2) }                    // 6 ↔ 13 every hour
+
+	from, to := at(0), at(23)
+	for _, tc := range []struct {
+		name string
+		s    []stationSeries
+		want float64
+	}{
+		{"one station alone", []stationSeries{series("A", storm)}, 3.6},
+		{"corroborated", []stationSeries{series("A", storm), series("B", storm), series("C", flat)}, 3.6},
+		{"lone sensor", []stationSeries{series("A", toggling), series("B", flat)}, 0},
+		{"noisy station ignored", []stationSeries{series("A", noisy), series("B", flat)}, 0},
+	} {
+		if got := newObserved(tc.s, math.NaN()).snow(from, to, barSnowMinRise); math.Abs(got-tc.want) > 0.05 {
+			t.Errorf("%s: snow = %.2f, want %.1f", tc.name, got, tc.want)
+		}
 	}
 }

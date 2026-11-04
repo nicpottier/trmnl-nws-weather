@@ -9,6 +9,10 @@ one above the other. For each location you get:
 - 6-hour bars for snow (dark) and rain (light), plus each day's snow and rain totals. The scale is fixed so it can
   be learned: a half-height bar is 3″ of snow or 0.3″ of rain in 6 hours (7.5 cm / 7.5 mm), heights are proportional,
   and anything over 6″ (0.6″) is drawn at full height, with the daily label giving the real amount
+- with station data (see below), the chart starts yesterday: the shaded past shows measured temperatures, and
+  measured snow and rain as outlined bars, so you can tell what actually fell from what is forecast
+- at places with snow-depth sensors, the new snow measured in the last 24 and 48 hours (e.g. "New snow 4″ 24h · 9″
+  48h"), the number that says whether the skiing is good
 
 Defaults to Leavenworth, WA and Stevens Pass, WA. Shown on a TRMNL X (1872×1404, 16 grays):
 
@@ -45,8 +49,8 @@ The current temperature is a measured observation, not the forecast for this hou
 source with a reading less than 2 hours old:
 
 1. With `SYNOPTIC_TOKEN` set, the nearest [Synoptic Data](https://synopticdata.com) (MesoWest) station: for example
-   LVN11 in Leavenworth and STS40 (Schmidt Haus, 3,950 ft) at Stevens Pass. That station's readings since midnight
-   also draw the part of today's line that has already happened, and widen today's low/high to include them. NWS
+   LVN11 in Leavenworth and STS40 (Schmidt Haus, 3,950 ft) at Stevens Pass. That station's readings also draw
+   yesterday and the part of today that has already happened, and widen today's low/high to include them. NWS
    forecasts start when they're issued, so without this the morning is often blank.
 2. forecast.weather.gov's point-forecast JSON (`MapClick.php?FcstType=json`), the same feed behind the
    "Current conditions" box on the NWS web page. For Leavenworth that is station LVN11. This endpoint is
@@ -56,6 +60,14 @@ source with a reading less than 2 hours old:
 
 A station whose elevation differs from the forecast point's by more than 300 m (about 1,000 ft) is skipped. Without
 this, Stevens Pass would show Skykomish's valley reading (SKKW1, 2,028 ft) instead of conditions at about 4,900 ft.
+
+Measured snow and rain come from all the stations near the location's elevation. Snowfall isn't measured directly
+(the stations' "new snow" readings are unusable), so new snow is the rise in snow depth: each station's depth is
+cleaned of spikes, impossible values and sensor jumps and smoothed over 3 hours; rises only count while the station
+is at 35°F or colder (sun warms depth sensors too); stations whose depth swings more than an inch hour to hour are
+ignored; and the largest rise counts only when a second station rose at least as much as the minimum (0.5″ per bar,
+1″ for the 24/48-hour totals). Rain is the median of the precipitation gauges that recorded anything at all, since
+a dead gauge reads a steady zero. See `server/forecast/observed.go`.
 
 The payload's `now.source` field says which one was used (`LVN11`, `STS40`, `KEAT`, … or `forecast`), and `now.observed_at`
 gives the reading's local time.
