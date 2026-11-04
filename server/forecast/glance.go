@@ -324,8 +324,7 @@ func observedDay(s *stationSeries, from time.Time, units string) (Day, bool) {
 	}, true
 }
 
-// freshSnow describes the snow measured in the last 24 and 48 hours, for places with snow-depth
-// stations that either have snow on the ground or had some fall.
+// freshSnow describes the snow measured in the last 24 and 48 hours, or "" when none fell.
 func freshSnow(o *observed, now time.Time, units string) string {
 	if o == nil || len(o.depths) == 0 {
 		return ""
@@ -333,9 +332,6 @@ func freshSnow(o *observed, now time.Time, units string) string {
 	d1 := o.snow(now.Add(-24*time.Hour), now, freshSnowMinRise)
 	d2 := math.Max(d1, o.snow(now.Add(-48*time.Hour), now, freshSnowMinRise))
 	if d2 == 0 {
-		if o.hasSnowpack() {
-			return "No new snow in 48h"
-		}
 		return ""
 	}
 	f := func(in float64) string {

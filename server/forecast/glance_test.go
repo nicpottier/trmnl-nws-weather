@@ -626,7 +626,7 @@ func TestObservedRealStevensWeek(t *testing.T) {
 		series = append(series, ss)
 	}
 	o := newObserved(series, 1487)
-	if o == nil || len(o.gauges) != 2 || !o.hasSnowpack() {
+	if o == nil || len(o.gauges) != 2 {
 		t.Fatalf("observed = %+v", o)
 	}
 	loc, _ := time.LoadLocation("America/Los_Angeles")

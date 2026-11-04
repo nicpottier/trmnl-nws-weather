@@ -124,16 +124,6 @@ func (o *observed) rain(from, to time.Time) float64 {
 	return median(totals)
 }
 
-// hasSnowpack reports whether any station shows at least an inch of snow on the ground now.
-func (o *observed) hasSnowpack() bool {
-	for _, d := range o.depths {
-		if d.depth[len(d.depth)-1].V >= 1 {
-			return true
-		}
-	}
-	return false
-}
-
 // smoothDepth turns raw depth readings into a smoothed hourly series (see the type comment).
 func smoothDepth(raw []reading) []reading {
 	byHour := map[int64][]float64{}
