@@ -458,10 +458,12 @@ func formatAmount(v float64, kind, units string) string {
 	return trimAmount(v, kind, units) + unit
 }
 
-// Below these daily amounts a number means little, so the chart says "Flurries" or "Sprinkles".
+// Below these daily amounts a number means little, so the chart says "Flurries" or "Sprinkles":
+// under 0.1″ of rain a day is damp at most, and under an inch of new snow doesn't change the
+// skiing. The two match at the usual 10:1 snow-to-water ratio.
 const (
-	flurriesIn, sprinklesIn = 0.3, 0.03
-	flurriesCm, sprinklesMm = 0.8, 0.8
+	flurriesIn, sprinklesIn = 1.0, 0.10
+	flurriesCm, sprinklesMm = 2.5, 2.5
 )
 
 // describeAmount is how a day's amount reads under the chart: shown plus word ("0.8″ snow"),

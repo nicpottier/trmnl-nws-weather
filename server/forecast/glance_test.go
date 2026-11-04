@@ -455,12 +455,14 @@ func TestLightAmounts(t *testing.T) {
 		{0, "rain", "us", ""},
 		{0.002, "rain", "us", "Sprinkles"}, // a trace too small to show as a number
 		{0.02, "rain", "us", "Sprinkles"},
-		{0.03, "rain", "us", "0.03″ rain"},
-		{0.1, "snow", "us", "Flurries"},
-		{0.3, "snow", "us", "0.3″ snow"},
-		{0.5, "rain", "si", "Sprinkles"},
-		{2, "rain", "si", "2.0mm rain"},
-		{0.5, "snow", "si", "Flurries"},
+		{0.09, "rain", "us", "Sprinkles"},
+		{0.1, "rain", "us", "0.10″ rain"},
+		{0.8, "snow", "us", "Flurries"},
+		{1, "snow", "us", "1.0″ snow"},
+		{2, "rain", "si", "Sprinkles"},
+		{2.5, "rain", "si", "2.5mm rain"},
+		{2, "snow", "si", "Flurries"},
+		{2.5, "snow", "si", "2.5cm snow"},
 	} {
 		light, limit := "Sprinkles", sprinklesIn
 		switch {
