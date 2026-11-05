@@ -160,7 +160,7 @@
           <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}{% if bar.observed %} wx__seen{% endif %}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
           {% endfor %}
         </div>
-        <div class="wx__past bg--gray-65" style="width: {{ chart.now_pct }}%;">
+        <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
         </div>
         <svg viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor">
