@@ -457,6 +457,9 @@ func TestLightAmounts(t *testing.T) {
 		{0.02, "rain", "us", "Sprinkles"},
 		{0.09, "rain", "us", "Sprinkles"},
 		{0.1, "rain", "us", "0.10″ rain"},
+		{0.095, "rain", "us", "0.10″ rain"}, // judged as shown, not as measured
+		{0.94, "snow", "us", "Flurries"},
+		{0.96, "snow", "us", "1.0″ snow"},
 		{0.8, "snow", "us", "Flurries"},
 		{1, "snow", "us", "1.0″ snow"},
 		{2, "rain", "si", "Sprinkles"},
@@ -473,7 +476,7 @@ func TestLightAmounts(t *testing.T) {
 		case tc.units == "si":
 			limit = sprinklesMm
 		}
-		if got := describeAmount(tc.v, formatAmount(tc.v, tc.kind, tc.units), tc.kind, light, limit); got != tc.want {
+		if got := describeAmount(tc.v, roundAmount(tc.v, tc.kind, tc.units), formatAmount(tc.v, tc.kind, tc.units), tc.kind, light, limit); got != tc.want {
 			t.Errorf("%v %s (%s) = %q, want %q", tc.v, tc.kind, tc.units, got, tc.want)
 		}
 	}

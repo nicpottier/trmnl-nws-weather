@@ -303,10 +303,10 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 			c.Rain += roundAmount(rn, "rain", units)
 		}
 		days[i].Amounts = []string{}
-		if a := describeAmount(sn, days[i].Snow, "snow", "Flurries", flurries); a != "" {
+		if a := describeAmount(sn, roundAmount(sn, "snow", units), days[i].Snow, "snow", "Flurries", flurries); a != "" {
 			days[i].Amounts = append(days[i].Amounts, a)
 		}
-		if a := describeAmount(rn, days[i].Rain, rainWord, "Sprinkles", sprinkles); a != "" {
+		if a := describeAmount(rn, roundAmount(rn, "rain", units), days[i].Rain, rainWord, "Sprinkles", sprinkles); a != "" {
 			days[i].Amounts = append(days[i].Amounts, a)
 		}
 	}
@@ -468,11 +468,13 @@ const (
 
 // describeAmount is how a day's amount reads under the chart: shown plus word ("0.8″ snow"),
 // light ("Flurries", "Sprinkles") for anything above zero but under limit, or "" for none.
-func describeAmount(v float64, shown, word, light string, limit float64) string {
+// The limit applies to the amount as it would be shown (rounded is v at display precision), so
+// 0.095″ of rain, which would read "0.10″", isn't called sprinkles.
+func describeAmount(v, rounded float64, shown, word, light string, limit float64) string {
 	switch {
 	case v <= 0:
 		return ""
-	case v < limit:
+	case rounded < limit:
 		return light
 	default:
 		return shown + " " + word
