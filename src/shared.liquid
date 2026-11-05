@@ -18,7 +18,7 @@
   .wx__axis { flex: 0 0 var(--wx-axis); position: relative; }
   .wx__axis > span { position: absolute; right: 6px; transform: translateY(-50%); }
   .wx__plot { position: relative; flex: 1 1 auto; border-bottom: 2px solid currentColor; }
-  /* Above the past shading, so day lines and measured bars show through it. */
+  /* Above the past shading, so day lines and bars show through it. */
   .wx__bars { position: absolute; inset: 0; z-index: 1; display: flex; }
   .wx__bars-day { position: relative; flex: 1 1 0; display: flex; align-items: flex-end; gap: 2px; padding: 0 2px; }
   /* Day lines belong to the bar groups, so they sit exactly midway between neighboring days' bars. */
@@ -32,8 +32,6 @@
     transform: translate(50%, -50%); box-shadow: 0 0 0 3px #fff;
   }
   .wx__bars-day > div { flex: 1 1 0; }
-  /* Measured snow and rain are outlined; forecast amounts are solid. */
-  .wx__bars-day > .wx__seen { box-sizing: border-box; border: 2px solid currentColor; border-bottom: 0; }
   .wx__plot svg { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; overflow: visible; }
   .wx__icon { display: block; flex: none; overflow: visible; }
   .screen--lg .wx__now .value { line-height: 0.85; }
@@ -89,8 +87,8 @@
 
 {% comment %}
   One location: current conditions on the left; on the right a week-long chart with the hourly
-  temperature line (and freezing line) over 6-hour snow and rain bars (outlined where measured
-  at nearby stations, solid where forecast), daily highs/lows above it, and each day's snow/rain amounts below. Positions and paths come precomputed from the service.
+  temperature line (and freezing line) over 6-hour snow and rain bars (measured at nearby
+  stations in the shaded past, forecast after), daily highs/lows above it, and each day's snow/rain amounts below. Positions and paths come precomputed from the service.
   Params: loc (one entry of locations), compact (true for the small layouts), updated (when
   set, an "Updated <time>" note under this location's left column; pass it for the last one),
   show_dates (the day names; stacked locations share them, so only the first shows them).
@@ -157,7 +155,7 @@
           {% comment %} Four 6-hour bars per day, grouped so each day's bars sit evenly inside its day lines. {% endcomment %}
           {% for day in loc.days limit: chart.days %}
           {% assign first = forloop.index0 | times: 4 %}
-          <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}{% if bar.observed %} wx__seen{% endif %}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
+          <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
           {% endfor %}
         </div>
         <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">

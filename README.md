@@ -10,7 +10,7 @@ one above the other. For each location you get:
   be learned: a half-height bar is 3″ of snow or 0.3″ of rain in 6 hours (7.5 cm / 7.5 mm), heights are proportional,
   and anything over 6″ (0.6″) is drawn at full height, with the daily label giving the real amount
 - with station data (see below), the chart starts yesterday: the shaded past shows measured temperatures, and
-  measured snow and rain as outlined bars, so you can tell what actually fell from what is forecast
+  measured snow and rain, so you can tell what actually fell from what is forecast
 - at places with snow-depth sensors, the new snow measured in the last 24 and 48 hours (e.g. "New snow 4″ 24h · 9″
   48h"), the number that says whether the skiing is good
 
