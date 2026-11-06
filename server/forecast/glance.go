@@ -21,7 +21,7 @@ type Glance struct {
 	OutlookName string  `json:"outlook_name"`
 	Days        []Day   `json:"days"`
 	TodayIndex  int     `json:"today_index"` // days[today_index] is today; earlier days are measured
-	FreshSnow   string  `json:"fresh_snow"`  // measured new snow, e.g. "New snow 3″ 24h · 7″ 48h", or ""
+	FreshSnow   string  `json:"fresh_snow"`  // measured new snow, e.g. "3″ 24h · 7″ 48h" or "7″ 48h", or ""
 	Alerts      []Alert `json:"alerts"`
 	Scale       Scale   `json:"scale"`
 	Chart       *Chart  `json:"chart,omitempty"`
@@ -341,7 +341,11 @@ func freshSnow(o *observed, now time.Time, units string) string {
 		}
 		return fmt.Sprintf("%.0f″", in)
 	}
-	return fmt.Sprintf("New snow %s 24h · %s 48h", f(d1), f(d2))
+	// The 24-hour total only when some fell in the last day (and it rounds to something).
+	if f(d1) == f(0) {
+		return f(d2) + " 48h"
+	}
+	return f(d1) + " 24h · " + f(d2) + " 48h"
 }
 
 func trend(hourly []Period, hour *Period, nowTemp int) string {

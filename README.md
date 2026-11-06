@@ -15,7 +15,7 @@ one above the other. For each location you get:
   for stronger gusts (the bottom of its band is 60 mph), with the spell's peak gust in it
 - with station data (see below), the chart starts yesterday: the shaded past shows measured temperatures, and
   measured snow and rain, so you can tell what actually fell from what is forecast
-- at places with snow-depth sensors, the new snow measured in the last 24 and 48 hours (e.g. "New snow 4″ 24h · 9″
+- at places with snow-depth sensors, the new snow measured in the last 24 and 48 hours (e.g. "❄ 4″ 24h · 9″
   48h"), the number that says whether the skiing is good
 
 Defaults to Leavenworth, WA and Stevens Pass, WA. Shown on a TRMNL X (1872×1404, 16 grays):

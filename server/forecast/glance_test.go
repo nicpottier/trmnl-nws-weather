@@ -653,7 +653,7 @@ func TestObservedRealStevensWeek(t *testing.T) {
 
 	// A chart starting the day before Oct 29 noon: Oct 28 is measured, outlined bars and all.
 	// It all fell before Oct 28 noon.
-	if f := freshSnow(o, noon29, "us"); f != "New snow 0″ 24h · 7″ 48h" {
+	if f := freshSnow(o, noon29, "us"); f != "7″ 48h" {
 		t.Errorf("freshSnow = %q", f)
 	}
 	var st *stationSeries
