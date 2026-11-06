@@ -47,19 +47,21 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 		}
 	}
 
-	// Each windy spell: a curve from zero at the spell's start, through each block's gust at the
-	// block's middle, back to zero at its end; and one label with its peak, centered under it.
+	// Each windy spell: a curve that eases in from zero a whole block before the spell's first
+	// block (at the middle of the calm block before it), runs through each block's gust at the
+	// block's middle, and eases back out to zero a block after its last; and one label with its
+	// peak, centered under it. The ends clamp to the chart's edges.
 	c.Gusts = []Storm{}
 	n := float64(len(gusts))
 	for _, r := range runs(len(gusts), func(k int) bool { return gusts[k] >= windyGustMph }) {
-		xs, ys := []float64{float64(r[0]) / n * 1000}, []float64{0}
+		xs, ys := []float64{math.Max(0, (float64(r[0])-0.5)/n*1000)}, []float64{0}
 		peak := 0.0
 		for k := r[0]; k <= r[1]; k++ {
 			xs = append(xs, (float64(k)+0.5)/n*1000)
 			ys = append(ys, math.Min(100, 100*gusts[k]/fullGustMph))
 			peak = math.Max(peak, gusts[k])
 		}
-		xs, ys = append(xs, float64(r[1]+1)/n*1000), append(ys, 0)
+		xs, ys = append(xs, math.Min(1000, (float64(r[1])+1.5)/n*1000)), append(ys, 0)
 		c.WindLine += smoothPath(xs, ys)
 
 		label := fmt.Sprintf("%.0f mph", peak)

@@ -770,9 +770,10 @@ func TestWind(t *testing.T) {
 	days := make([]Day, 2)
 	c := buildChart(&grid, days, loc, now, "us", "auto", nil, seen, 0)
 	// Block 0 (midnight-6): station peaks 20, 26, 10 -> median 20, calm. Block 1: 31, 45 -> 38.
-	// Two windy spells (blocks 1 and 5), each a curve from zero, through the gust, back to zero.
-	if c.WindLine != "M125,0C145.8,0 166.7,63.3 187.5,63.3C208.3,63.3 229.2,0 250,0"+
-		"M625,0C645.8,0 666.7,66.3 687.5,66.3C708.3,66.3 729.2,0 750,0" ||
+	// Two windy spells (blocks 1 and 5), each a curve easing in from zero at the middle of the
+	// block before, through the gust, and back out to zero at the middle of the block after.
+	if c.WindLine != "M62.5,0C104.2,0 145.8,63.3 187.5,63.3C229.2,63.3 270.8,0 312.5,0"+
+		"M562.5,0C604.2,0 645.8,66.3 687.5,66.3C729.2,66.3 770.8,0 812.5,0" ||
 		days[0].Gust != 38 || days[1].Gust != 40 || len(c.Gusts) != 2 || c.Gusts[1].Labels[0] != "40 mph" {
 		t.Errorf("wind = %s, gusts %d / %d, labels %+v", c.WindLine, days[0].Gust, days[1].Gust, c.Gusts)
 	}
