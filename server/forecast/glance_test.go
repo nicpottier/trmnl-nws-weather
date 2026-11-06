@@ -774,7 +774,7 @@ func TestWind(t *testing.T) {
 	// block before, through the gust, and back out to zero at the middle of the block after.
 	if c.WindLine != "M62.5,0C104.2,0 145.8,63.3 187.5,63.3C229.2,63.3 270.8,0 312.5,0"+
 		"M562.5,0C604.2,0 645.8,66.3 687.5,66.3C729.2,66.3 770.8,0 812.5,0" ||
-		days[0].Gust != 38 || days[1].Gust != 40 || len(c.Gusts) != 2 || c.Gusts[1].Labels[0] != "40 mph" {
+		days[0].Gust != 38 || days[1].Gust != 40 || len(c.Gusts) != 2 || c.Gusts[1].Labels[0] != "40" {
 		t.Errorf("wind = %s, gusts %d / %d, labels %+v", c.WindLine, days[0].Gust, days[1].Gust, c.Gusts)
 	}
 	days = make([]Day, 2)

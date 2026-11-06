@@ -65,9 +65,9 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 		xs, ys = append(xs, math.Min(1000, (float64(r[1])+1.5)/n*1000)), append(ys, 0)
 		c.WindLine += smoothPath(xs, ys)
 
-		label := fmt.Sprintf("%.0f mph", peak)
+		label := fmt.Sprintf("%.0f", peak) // mph, or km/h
 		if units == "si" {
-			label = fmt.Sprintf("%.0f km/h", peak*kmhPerMph)
+			label = fmt.Sprintf("%.0f", peak*kmhPerMph)
 		}
 		c.Gusts = append(c.Gusts, Storm{X: runCenter(r, len(gusts)), Labels: []string{label}, Depth: math.Round(depth*10) / 10})
 	}
