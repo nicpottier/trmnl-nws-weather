@@ -7,6 +7,7 @@ import "math"
 type Storm struct {
 	X      float64  `json:"x"`
 	Labels []string `json:"labels"`
+	Depth  float64  `json:"depth,omitempty"` // windy spells: how far down the wind band the curve dips, 0-100 %
 }
 
 // A block counts toward a storm when it gets at least this much. Lighter blocks between two wet
