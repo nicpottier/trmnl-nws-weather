@@ -6,9 +6,13 @@ one above the other. For each location you get:
 - the current temperature (measured where possible, see below) and conditions
 - each day's forecast high and low, with an icon
 - an hourly temperature line for the week, a dashed freezing line, and a marker at the current time
-- 6-hour bars for snow (dark) and rain (light), plus each day's snow and rain totals. The scale is fixed so it can
-  be learned: a half-height bar is 3″ of snow or 0.3″ of rain in 6 hours (7.5 cm / 7.5 mm), heights are proportional,
-  and anything over 6″ (0.6″) is drawn at full height, with the daily label giving the real amount
+- 6-hour bars for snow (dark) and rain (light), with each storm's total centered under it. A storm is a run of
+  blocks with at least 0.02″ of rain or 0.2″ of snow; storms under 0.10″ of rain and 1″ of snow aren't labeled.
+  The scale is fixed so it can be learned: a half-height bar is 3″ of snow or 0.3″ of rain in 6 hours
+  (7.5 cm / 7.5 mm), heights are proportional, and anything over 6″ (0.6″) is drawn at full height, with the
+  storm's label giving the real amount
+- wind, only when gusts reach 25 mph: a dotted curve hanging from the top of the chart for each windy spell, deeper
+  for stronger gusts (the bottom of its band is 60 mph), with the spell's peak gust in it
 - with station data (see below), the chart starts yesterday: the shaded past shows measured temperatures, and
   measured snow and rain, so you can tell what actually fell from what is forecast
 - at places with snow-depth sensors, the new snow measured in the last 24 and 48 hours (e.g. "New snow 4″ 24h · 9″
