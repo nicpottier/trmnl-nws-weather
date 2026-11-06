@@ -31,8 +31,9 @@
   .wx__wind-day { flex: 1 1 0; display: flex; align-items: flex-start; gap: 2px; padding: 0 2px; }
   .wx__wind-day > div { flex: 1 1 0; }
   .wx__wind-day > .wx__gusty { background: repeating-linear-gradient(135deg, #000 0 2px, transparent 2px 5px); border: 1px solid #000; border-top: 0; box-sizing: border-box; }
-  .wx__gust { display: inline-flex; align-items: center; gap: 4px; }
-  .screen--lg .wx__gust svg { width: 30px; height: 30px; }
+  /* The day's peak gust, centered just under its wind bars, on white so the temperature line can't hide it. */
+  .wx__wind-day { position: relative; }
+  .wx__gust { position: absolute; top: calc(100% + 3px); left: 50%; transform: translateX(-50%); z-index: 2; white-space: nowrap; background: #fff; padding: 0 4px; }
   .wx__past { position: absolute; top: 0; bottom: 0; left: 0; }
   .wx__dot {
     position: absolute; right: 0; z-index: 2; width: 14px; height: 14px; border-radius: 50%;
@@ -170,7 +171,7 @@
         <div class="wx__wind">
           {% for day in loc.days limit: chart.days %}
           {% assign first = forloop.index0 | times: 4 %}
-          <div class="wx__wind-day">{% for h in chart.wind offset: first limit: 4 %}<div{% if h > 0 %} class="wx__gusty"{% endif %} style="height: {{ h }}%;"></div>{% endfor %}</div>
+          <div class="wx__wind-day">{% for h in chart.wind offset: first limit: 4 %}<div{% if h > 0 %} class="wx__gusty"{% endif %} style="height: {{ h }}%;"></div>{% endfor %}{% if day.gust > 0 %}<span class="wx__gust label label--small lg:label--large">{{ day.gust }} {% if loc.unit == "C" %}km/h{% else %}mph{% endif %}</span>{% endif %}</div>
           {% endfor %}
         </div>
         {% endif %}
@@ -188,7 +189,6 @@
       {% for day in loc.days limit: chart.days %}
       <div class="wx__amounts">
         {% for amount in day.totals %}<span class="label label--small lg:label--large">{{ amount }}</span>{% endfor %}
-        {% if day.gust > 0 %}<span class="wx__gust label label--small lg:label--large">{% render "wx_icon", name: "wind", size: 20 %}{{ day.gust }}</span>{% endif %}
       </div>
       {% endfor %}
     </div>
