@@ -55,12 +55,11 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 	n := float64(len(gusts))
 	for _, r := range runs(len(gusts), func(k int) bool { return gusts[k] >= windyGustMph }) {
 		xs, ys := []float64{math.Max(0, (float64(r[0])-0.5)/n*1000)}, []float64{0}
-		peak, depth := 0.0, 0.0
+		peak := 0.0
 		for k := r[0]; k <= r[1]; k++ {
 			xs = append(xs, (float64(k)+0.5)/n*1000)
 			ys = append(ys, math.Min(100, 100*gusts[k]/fullGustMph))
 			peak = math.Max(peak, gusts[k])
-			depth = math.Max(depth, ys[len(ys)-1])
 		}
 		xs, ys = append(xs, math.Min(1000, (float64(r[1])+1.5)/n*1000)), append(ys, 0)
 		c.WindLine += smoothPath(xs, ys)
@@ -69,7 +68,7 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 		if units == "si" {
 			label = fmt.Sprintf("%.0f", peak*kmhPerMph)
 		}
-		c.Gusts = append(c.Gusts, Storm{X: runCenter(r, len(gusts)), Labels: []string{label}, Depth: math.Round(depth*10) / 10})
+		c.Gusts = append(c.Gusts, Storm{X: runCenter(r, len(gusts)), Labels: []string{label}})
 	}
 }
 
