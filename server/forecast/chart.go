@@ -122,6 +122,8 @@ type Chart struct {
 	TempMin   int       `json:"temp_min"`     // temperature at the bottom
 	BarKind   string    `json:"bar_kind"`     // "auto", "snow" or "precip"
 	Bars      []Bar     `json:"bars"`         // one per 6 hours
+	Storms    []Storm   `json:"storms"`       // snow/rain totals per storm, centered under it
+	Gusts     []Storm   `json:"gusts"`        // peak gust per windy spell, centered under it
 	Wind      []float64 `json:"wind"`         // per 6 hours: gust bar height, 0-100 % of the wind band (0 when not windy)
 	HasAmount bool      `json:"has_amount"`   // any snow/rain at all in the window
 	Days      int       `json:"days"`         // columns in the chart
@@ -317,13 +319,28 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 		if a := describeAmount(rn, roundAmount(rn, "rain", units), days[i].Rain, rainWord, "Sprinkles", sprinkles); a != "" {
 			days[i].Amounts = append(days[i].Amounts, a)
 		}
-		// The chart lists just the numbers, and nothing for amounts under the light limits.
-		days[i].Totals = []string{}
-		if days[i].Snow != "" && roundAmount(sn, "snow", units) >= flurries {
-			days[i].Totals = append(days[i].Totals, days[i].Snow)
+	}
+
+	// Storms: runs of wet blocks, each labeled with its totals.
+	minSnow, minRain := stormMinSnowIn, stormMinRainIn
+	if units == "si" {
+		minSnow, minRain = stormMinSnowCm, stormMinRainMm
+	}
+	c.Storms = []Storm{}
+	for _, r := range runs(len(buckets), func(k int) bool { return buckets[k].snow >= minSnow || buckets[k].rain >= minRain }) {
+		sn, rn := 0.0, 0.0
+		for _, b := range buckets[r[0] : r[1]+1] {
+			sn, rn = sn+b.snow, rn+b.rain
 		}
-		if days[i].Rain != "" && roundAmount(rn, "rain", units) >= sprinkles {
-			days[i].Totals = append(days[i].Totals, days[i].Rain)
+		s := Storm{X: runCenter(r, len(buckets)), Labels: []string{}}
+		if roundAmount(sn, "snow", units) >= flurries {
+			s.Labels = append(s.Labels, formatAmount(sn, "snow", units))
+		}
+		if roundAmount(rn, "rain", units) >= sprinkles {
+			s.Labels = append(s.Labels, formatAmount(rn, "rain", units))
+		}
+		if len(s.Labels) > 0 {
+			c.Storms = append(c.Storms, s)
 		}
 	}
 

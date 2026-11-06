@@ -49,7 +49,10 @@
   .wx__hilo { display: flex; flex-direction: column; justify-content: space-between; padding: 9px 0 8px; }
   .screen--lg .wx__hilo { padding: 3px 0; }
   .wx__row > .wx__lohi { gap: 12px; }
-  .wx__row > .wx__amounts { flex-direction: column; justify-content: flex-start; gap: 0; }
+  .wx__storms { padding-left: var(--wx-axis); }
+  .wx__track { position: relative; display: flex; flex-direction: column; }
+  .wx__ghost { visibility: hidden; }
+  .wx__storm { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; white-space: nowrap; }
   .wx--compact { flex-direction: column; gap: 2px; }
   .wx--compact .wx__now { flex: none; flex-direction: row; align-items: center; gap: 8px; }
   .wx--compact .wx__row > *, .wx--compact .wx__row > .wx__lohi { flex-direction: column; gap: 0; }
@@ -92,8 +95,8 @@
 {% comment %}
   One location: current conditions on the left; on the right a week-long chart with the hourly
   temperature line (and freezing line) over 6-hour snow and rain bars (measured at nearby
-  stations in the shaded past, forecast after), daily highs/lows above it, and each day's snow/rain totals below (numbers only; the
-  bar shading tells snow from rain). Positions and paths come precomputed from the service.
+  stations in the shaded past, forecast after), daily highs/lows above it, and each storm's snow/rain totals and each windy spell's
+  peak gust below, centered under it (numbers only; the bar shading tells snow from rain). Positions and paths come precomputed from the service.
   Params: loc (one entry of locations), compact (true for the small layouts), updated (when
   set, an "Updated <time>" note under this location's left column; pass it for the last one),
   show_dates (the day names; stacked locations share them, so only the first shows them).
@@ -181,14 +184,23 @@
       </div>
     </div>
     {% unless compact %}
-    <div class="wx__row">
-      {% for day in loc.days limit: chart.days %}
-      <div class="wx__amounts">
-        {% for amount in day.totals %}<span class="label label--small lg:label--large">{{ amount }}</span>{% endfor %}
-        {% if day.gust > 0 %}<span class="label label--small lg:label--large">{{ day.gust }} {% if loc.unit == "C" %}km/h{% else %}mph{% endif %}</span>{% endif %}
+    {% comment %} One label per storm (snow, then rain) and per windy spell, centered under it. Hidden placeholder labels give each row its height. {% endcomment %}
+    {% assign lines = 1 %}
+    {% for storm in chart.storms %}{% if storm.labels.size > lines %}{% assign lines = storm.labels.size %}{% endif %}{% endfor %}
+    <div class="wx__storms">
+      <div class="wx__track">
+        {% for i in (1..lines) %}<span class="wx__ghost label label--small lg:label--large">0</span>{% endfor %}
+        {% for storm in chart.storms %}<div class="wx__storm" style="left: {{ storm.x }}%;">{% for label in storm.labels %}<span class="label label--small lg:label--large">{{ label }}</span>{% endfor %}</div>{% endfor %}
       </div>
-      {% endfor %}
     </div>
+    {% if chart.gusts.size > 0 %}
+    <div class="wx__storms">
+      <div class="wx__track">
+        <span class="wx__ghost label label--small lg:label--large">0</span>
+        {% for gust in chart.gusts %}<div class="wx__storm" style="left: {{ gust.x }}%;"><span class="label label--small lg:label--large">{{ gust.labels.first }}</span></div>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
     {% endunless %}
   </div>
   {% endif %}

@@ -1,6 +1,7 @@
 package forecast
 
 import (
+	"fmt"
 	"math"
 	"time"
 )
@@ -20,6 +21,7 @@ const (
 func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, units string, seen *observed) {
 	ivs := grid.Properties.WindGust.intervals()
 	perDay := 24 / barHours
+	gusts := []float64{}
 	for k, t := 0, start; t.Before(end); k, t = k+1, t.Add(barHours*time.Hour) {
 		next := t.Add(barHours * time.Hour)
 		mph := 0.0
@@ -36,6 +38,7 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 			h = math.Min(100, math.Round(1000*mph/fullGustMph)/10)
 		}
 		c.Wind = append(c.Wind, h)
+		gusts = append(gusts, mph)
 		if d := k / perDay; d < len(days) && mph >= windyGustMph {
 			g := int(math.Round(mph))
 			if units == "si" {
@@ -43,5 +46,19 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 			}
 			days[d].Gust = max(days[d].Gust, g)
 		}
+	}
+
+	// One label per windy spell: its peak gust, centered under it.
+	c.Gusts = []Storm{}
+	for _, r := range runs(len(gusts), func(k int) bool { return gusts[k] >= windyGustMph }) {
+		peak := 0.0
+		for _, g := range gusts[r[0] : r[1]+1] {
+			peak = math.Max(peak, g)
+		}
+		label := fmt.Sprintf("%.0f mph", peak)
+		if units == "si" {
+			label = fmt.Sprintf("%.0f km/h", peak*kmhPerMph)
+		}
+		c.Gusts = append(c.Gusts, Storm{X: runCenter(r, len(gusts)), Labels: []string{label}})
 	}
 }

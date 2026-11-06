@@ -58,7 +58,6 @@ type Day struct {
 	Rain      string   `json:"rain"`    // forecast rain for the day, e.g. "0.13″", or ""
 	Amounts   []string `json:"amounts"` // the day's amounts in words, e.g. ["1.2″ snow", "Sprinkles"]
 	Gust      int      `json:"gust"`    // the day's peak gust (mph or km/h) when windy, else 0
-	Totals    []string `json:"totals"`  // what the chart lists under the day: amounts past the light limits, e.g. ["1.2″", "0.13″"]
 }
 
 type Scale struct {

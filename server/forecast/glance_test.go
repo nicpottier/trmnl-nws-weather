@@ -331,9 +331,6 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 		len(days[2].Amounts) != 0 {
 		t.Errorf("amounts = %q / %q / %q", days[0].Amounts, days[1].Amounts, days[2].Amounts)
 	}
-	if !reflect.DeepEqual(days[0].Totals, []string{"0.50″"}) || !reflect.DeepEqual(days[1].Totals, []string{"2.0″"}) {
-		t.Errorf("totals = %q / %q", days[0].Totals, days[1].Totals)
-	}
 	if c.TempMin != 20 || c.TempMax != 45 || c.FreezeY == nil || c.Label != "Snow 2.0″ · Rain 0.50″" {
 		t.Errorf("scale %d-%d freeze %v label %q", c.TempMin, c.TempMax, c.FreezeY, c.Label)
 	}
@@ -751,26 +748,6 @@ func TestSnowNeedsTwoStations(t *testing.T) {
 	}
 }
 
-func TestTotalsSkipLightAmounts(t *testing.T) {
-	loc, _ := time.LoadLocation("America/Los_Angeles")
-	now := time.Date(2026, 11, 2, 6, 0, 0, 0, loc)
-	grid := GridData{}
-	add := func(series *GridSeries, h int, v float64) {
-		series.Values = append(series.Values, struct {
-			ValidTime string   `json:"validTime"`
-			Value     *float64 `json:"value"`
-		}{time.Date(2026, 11, 2, h, 0, 0, 0, loc).Format(time.RFC3339) + "/PT6H", &v})
-	}
-	add(&grid.Properties.QuantitativePrecipitation, 0, 1.0)  // 0.04″: sprinkles
-	add(&grid.Properties.QuantitativePrecipitation, 24, 5.0) // 0.20″
-	days := make([]Day, 2)
-	buildChart(&grid, days, loc, now, "us", "auto", nil, nil, 0)
-	if len(days[0].Totals) != 0 || !reflect.DeepEqual(days[0].Amounts, []string{"Sprinkles"}) ||
-		!reflect.DeepEqual(days[1].Totals, []string{"0.20″"}) {
-		t.Errorf("days = %+v", days)
-	}
-}
-
 func TestWind(t *testing.T) {
 	loc, _ := time.LoadLocation("America/Los_Angeles")
 	now := time.Date(2026, 11, 2, 12, 0, 0, 0, loc)
@@ -801,5 +778,31 @@ func TestWind(t *testing.T) {
 	buildChart(&grid, days, loc, now, "si", "auto", nil, seen, 0)
 	if days[1].Gust != 64 {
 		t.Errorf("si gust = %d", days[1].Gust)
+	}
+}
+
+func TestStorms(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	now := time.Date(2026, 11, 2, 0, 0, 0, 0, loc)
+	grid := GridData{}
+	add := func(series *GridSeries, h int, v float64) {
+		series.Values = append(series.Values, struct {
+			ValidTime string   `json:"validTime"`
+			Value     *float64 `json:"value"`
+		}{time.Date(2026, 11, 2, h, 0, 0, 0, loc).Format(time.RFC3339) + "/PT6H", &v})
+	}
+	q := &grid.Properties.QuantitativePrecipitation
+	add(q, 0, 0.2)   // 0.008″: too light to count
+	add(q, 6, 2.54)  // 0.10″ \ one storm, blocks 1-2 (6 AM-6 PM), centered at 25%: 0.30″
+	add(q, 12, 5.08) // 0.20″ /
+	add(q, 18, 0.25) // 0.01″: a break
+	add(q, 24, 1.0)  // 0.04″: a storm too light to label
+	add(q, 36, 7.62) // 0.30″ and snow: 3″
+	add(&grid.Properties.SnowfallAmount, 36, 76.2)
+	days := make([]Day, 2)
+	c := buildChart(&grid, days, loc, now, "us", "auto", nil, nil, 0)
+	want := []Storm{{X: 25, Labels: []string{"0.30″"}}, {X: 81.3, Labels: []string{"3.0″"}}}
+	if !reflect.DeepEqual(c.Storms, want) {
+		t.Errorf("storms = %+v", c.Storms)
 	}
 }
