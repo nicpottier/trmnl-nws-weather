@@ -26,6 +26,13 @@
     content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 1px; transform: translateX(-50%);
     background: repeating-linear-gradient(to bottom, currentColor 0 2px, transparent 2px 6px);
   }
+  /* Wind hangs from the top: a band 15% of the chart tall, one striped bar per 6 hours, drawn only when gusty. */
+  .wx__wind { position: absolute; top: 0; left: 0; right: 0; height: 15%; z-index: 1; display: flex; }
+  .wx__wind-day { flex: 1 1 0; display: flex; align-items: flex-start; gap: 2px; padding: 0 2px; }
+  .wx__wind-day > div { flex: 1 1 0; }
+  .wx__wind-day > .wx__gusty { background: repeating-linear-gradient(135deg, #000 0 2px, transparent 2px 5px); border: 1px solid #000; border-top: 0; box-sizing: border-box; }
+  .wx__gust { display: inline-flex; align-items: center; gap: 4px; }
+  .screen--lg .wx__gust svg { width: 30px; height: 30px; }
   .wx__past { position: absolute; top: 0; bottom: 0; left: 0; }
   .wx__dot {
     position: absolute; right: 0; z-index: 2; width: 14px; height: 14px; border-radius: 50%;
@@ -159,6 +166,14 @@
           <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
           {% endfor %}
         </div>
+        {% if chart.wind %}
+        <div class="wx__wind">
+          {% for day in loc.days limit: chart.days %}
+          {% assign first = forloop.index0 | times: 4 %}
+          <div class="wx__wind-day">{% for h in chart.wind offset: first limit: 4 %}<div{% if h > 0 %} class="wx__gusty"{% endif %} style="height: {{ h }}%;"></div>{% endfor %}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
         <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
         </div>
@@ -173,6 +188,7 @@
       {% for day in loc.days limit: chart.days %}
       <div class="wx__amounts">
         {% for amount in day.totals %}<span class="label label--small lg:label--large">{{ amount }}</span>{% endfor %}
+        {% if day.gust > 0 %}<span class="wx__gust label label--small lg:label--large">{% render "wx_icon", name: "wind", size: 20 %}{{ day.gust }}</span>{% endif %}
       </div>
       {% endfor %}
     </div>

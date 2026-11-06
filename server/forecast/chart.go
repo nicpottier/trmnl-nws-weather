@@ -18,6 +18,7 @@ type GridData struct {
 		Temperature               GridSeries `json:"temperature"`
 		SnowfallAmount            GridSeries `json:"snowfallAmount"`
 		QuantitativePrecipitation GridSeries `json:"quantitativePrecipitation"`
+		WindGust                  GridSeries `json:"windGust"` // km/h
 	} `json:"properties"`
 }
 
@@ -112,21 +113,22 @@ func minTime(a, b time.Time) time.Time {
 // Chart is drawn in two layers: an SVG temperature line in a 1000x100 viewBox stretched over the
 // chart area, and HTML bars (so the Framework can dither their shading on 1-bit screens).
 type Chart struct {
-	TempPath  string   `json:"temp_path"`    // SVG path, viewBox 0 0 1000 100
-	FreezeY   *float64 `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
-	NowX      float64  `json:"now_x"`        // x of the current time, 0-1000
-	NowPct    float64  `json:"now_pct"`      // the same, as a percentage
-	NowY      *float64 `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
-	TempMax   int      `json:"temp_max"`     // temperature at the top of the chart
-	TempMin   int      `json:"temp_min"`     // temperature at the bottom
-	BarKind   string   `json:"bar_kind"`     // "auto", "snow" or "precip"
-	Bars      []Bar    `json:"bars"`         // one per 6 hours
-	HasAmount bool     `json:"has_amount"`   // any snow/rain at all in the window
-	Days      int      `json:"days"`         // columns in the chart
-	Snow      float64  `json:"snow_total"`   // total snowfall over the window, display units
-	Rain      float64  `json:"rain_total"`   // total rain (or all precip, in "precip" mode)
-	Label     string   `json:"label"`        // e.g. "Snow 1.8″ · Rain 0.25″"
-	Freeze    string   `json:"freeze_label"` // "32°" or "0°"
+	TempPath  string    `json:"temp_path"`    // SVG path, viewBox 0 0 1000 100
+	FreezeY   *float64  `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
+	NowX      float64   `json:"now_x"`        // x of the current time, 0-1000
+	NowPct    float64   `json:"now_pct"`      // the same, as a percentage
+	NowY      *float64  `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
+	TempMax   int       `json:"temp_max"`     // temperature at the top of the chart
+	TempMin   int       `json:"temp_min"`     // temperature at the bottom
+	BarKind   string    `json:"bar_kind"`     // "auto", "snow" or "precip"
+	Bars      []Bar     `json:"bars"`         // one per 6 hours
+	Wind      []float64 `json:"wind"`         // per 6 hours: gust bar height, 0-100 % of the wind band (0 when not windy)
+	HasAmount bool      `json:"has_amount"`   // any snow/rain at all in the window
+	Days      int       `json:"days"`         // columns in the chart
+	Snow      float64   `json:"snow_total"`   // total snowfall over the window, display units
+	Rain      float64   `json:"rain_total"`   // total rain (or all precip, in "precip" mode)
+	Label     string    `json:"label"`        // e.g. "Snow 1.8″ · Rain 0.25″"
+	Freeze    string    `json:"freeze_label"` // "32°" or "0°"
 
 	samples []sample // hourly temperatures in display units, kept so the scale can be changed
 	freeze  float64  // 32 or 0, in display units
@@ -183,6 +185,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 	}
 
 	c.fillBars(grid, days, start, end, today, now, units, barMode, seen)
+	c.fillWind(grid, days, start, end, now, units, seen)
 	return c
 }
 
@@ -249,9 +252,14 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 		pr := amountBetween(precipIvs, t, next) * rainConv
 		b := bucket{}
 		if seen != nil && !next.After(now) {
-			sn = seen.snow(t, next, barSnowMinRise) * obsSnowConv
-			pr = seen.rain(t, next) * obsRainConv
-			b.observed = true
+			// Each kind is measured only where there are sensors for it.
+			if len(seen.depths) > 0 {
+				sn = seen.snow(t, next, barSnowMinRise) * obsSnowConv
+			}
+			if len(seen.gauges) > 0 {
+				pr = seen.rain(t, next) * obsRainConv
+			}
+			b.observed = len(seen.depths) > 0 || len(seen.gauges) > 0
 		}
 		switch {
 		case mode == "precip":

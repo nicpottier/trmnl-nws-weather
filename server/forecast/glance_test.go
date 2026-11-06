@@ -761,12 +761,45 @@ func TestTotalsSkipLightAmounts(t *testing.T) {
 			Value     *float64 `json:"value"`
 		}{time.Date(2026, 11, 2, h, 0, 0, 0, loc).Format(time.RFC3339) + "/PT6H", &v})
 	}
-	add(&grid.Properties.QuantitativePrecipitation, 0, 1.0) // 0.04″: sprinkles
+	add(&grid.Properties.QuantitativePrecipitation, 0, 1.0)  // 0.04″: sprinkles
 	add(&grid.Properties.QuantitativePrecipitation, 24, 5.0) // 0.20″
 	days := make([]Day, 2)
 	buildChart(&grid, days, loc, now, "us", "auto", nil, nil, 0)
 	if len(days[0].Totals) != 0 || !reflect.DeepEqual(days[0].Amounts, []string{"Sprinkles"}) ||
 		!reflect.DeepEqual(days[1].Totals, []string{"0.20″"}) {
 		t.Errorf("days = %+v", days)
+	}
+}
+
+func TestWind(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	now := time.Date(2026, 11, 2, 12, 0, 0, 0, loc)
+	at := func(d, h int) time.Time { return time.Date(2026, 11, d, h, 0, 0, 0, loc) }
+	grid := GridData{}
+	add := func(t time.Time, kmh float64) {
+		grid.Properties.WindGust.Values = append(grid.Properties.WindGust.Values, struct {
+			ValidTime string   `json:"validTime"`
+			Value     *float64 `json:"value"`
+		}{t.Format(time.RFC3339) + "/PT3H", &kmh})
+	}
+	add(at(2, 0), 80)  // 50 mph, but already past: the stations say otherwise
+	add(at(2, 12), 30) // 19 mph: not windy
+	add(at(3, 6), 64)  // 40 mph
+	seen := &observed{gusts: [][]reading{
+		{{at(2, 3), 20}, {at(2, 7), 31}},
+		{{at(2, 4), 26}, {at(2, 8), 45}},
+		{{at(2, 5), 10}},
+	}}
+	days := make([]Day, 2)
+	c := buildChart(&grid, days, loc, now, "us", "auto", nil, seen, 0)
+	// Block 0 (midnight-6): station peaks 20, 26, 10 -> median 20, calm. Block 1: 31, 45 -> 38.
+	want := []float64{0, 63.3, 0, 0, 0, 66.3, 0, 0}
+	if !reflect.DeepEqual(c.Wind, want) || days[0].Gust != 38 || days[1].Gust != 40 {
+		t.Errorf("wind = %v, gusts %d / %d", c.Wind, days[0].Gust, days[1].Gust)
+	}
+	days = make([]Day, 2)
+	buildChart(&grid, days, loc, now, "si", "auto", nil, seen, 0)
+	if days[1].Gust != 64 {
+		t.Errorf("si gust = %d", days[1].Gust)
 	}
 }

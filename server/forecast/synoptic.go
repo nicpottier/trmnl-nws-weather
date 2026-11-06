@@ -29,6 +29,7 @@ type stationSeries struct {
 	TempF       []float64
 	Depth       []reading // snow depth, inches
 	Precip      []reading // precipitation in the hour ending at T, inches
+	Gust        []reading // wind gusts, mph
 }
 
 type reading struct {
@@ -51,6 +52,7 @@ type synopticResponse struct {
 			AirTemp   []*float64  `json:"air_temp_set_1"`
 			SnowDepth []*float64  `json:"snow_depth_set_1"`
 			Precip    []*float64  `json:"precip_accum_one_hour_set_1"`
+			Gust      []*float64  `json:"wind_gust_set_1"` // knots
 		} `json:"OBSERVATIONS"`
 	} `json:"STATION"`
 }
@@ -65,7 +67,7 @@ func (c *nwsClient) synopticSeries(ctx context.Context, lat, lon float64, since,
 		"token":      {synopticToken},
 		"radius":     {fmt.Sprintf("%.4f,%.4f,10", lat, lon)},
 		"limit":      {"8"},
-		"vars":       {"air_temp,snow_depth,precip_accum_one_hour"},
+		"vars":       {"air_temp,snow_depth,precip_accum_one_hour,wind_gust"},
 		"units":      {"english"},
 		"obtimezone": {"utc"},
 		"recent":     {fmt.Sprint(int(math.Ceil(now.Sub(since).Minutes())))},
@@ -102,6 +104,9 @@ func (c *nwsClient) synopticSeries(ctx context.Context, lat, lon float64, since,
 			}
 			if v, ok := at(o.Precip, i); ok {
 				ss.Precip = append(ss.Precip, reading{t, v})
+			}
+			if v, ok := at(o.Gust, i); ok {
+				ss.Gust = append(ss.Gust, reading{t, v * 1.151}) // knots -> mph
 			}
 		}
 		out = append(out, ss)

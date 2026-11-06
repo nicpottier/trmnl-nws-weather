@@ -27,6 +27,7 @@ import (
 type observed struct {
 	depths []depthSeries // per snow-depth station
 	gauges [][]reading   // per live gauge: hourly precipitation, inches
+	gusts  [][]reading   // per station with a wind sensor: gusts, mph
 }
 
 type depthSeries struct {
@@ -63,8 +64,11 @@ func newObserved(series []stationSeries, pointElevM float64) *observed {
 		if total > 0 {
 			o.gauges = append(o.gauges, s.Precip)
 		}
+		if len(s.Gust) > 0 {
+			o.gusts = append(o.gusts, s.Gust)
+		}
 	}
-	if len(o.depths) == 0 && len(o.gauges) == 0 {
+	if len(o.depths) == 0 && len(o.gauges) == 0 && len(o.gusts) == 0 {
 		return nil
 	}
 	return o
@@ -83,6 +87,24 @@ func (o *observed) snow(from, to time.Time, minRise float64) float64 {
 		return 0
 	}
 	return rises[0]
+}
+
+// gust returns the peak gust, in mph, measured in (from, to]: the median of each wind station's
+// peak, so one exposed ridge-top sensor doesn't speak for the whole area.
+func (o *observed) gust(from, to time.Time) float64 {
+	peaks := []float64{}
+	for _, g := range o.gusts {
+		p, any := 0.0, false
+		for _, r := range g {
+			if r.T.After(from) && !r.T.After(to) {
+				p, any = math.Max(p, r.V), true
+			}
+		}
+		if any {
+			peaks = append(peaks, p)
+		}
+	}
+	return median(peaks)
 }
 
 // jitter is the median change between consecutive hours of a station's raw depth readings.
