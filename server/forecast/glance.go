@@ -56,7 +56,8 @@ type Day struct {
 	HeightPct float64  `json:"height_pct"`
 	Snow      string   `json:"snow"`    // forecast snowfall for the day, e.g. "0.8″", or ""
 	Rain      string   `json:"rain"`    // forecast rain for the day, e.g. "0.13″", or ""
-	Amounts   []string `json:"amounts"` // what the chart lists under the day, e.g. ["0.8″ snow", "0.13″ rain"]
+	Amounts   []string `json:"amounts"` // the day's amounts in words, e.g. ["1.2″ snow", "Sprinkles"]
+	Totals    []string `json:"totals"`  // what the chart lists under the day: amounts past the light limits, e.g. ["1.2″", "0.13″"]
 }
 
 type Scale struct {

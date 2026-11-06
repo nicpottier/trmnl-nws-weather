@@ -309,6 +309,14 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 		if a := describeAmount(rn, roundAmount(rn, "rain", units), days[i].Rain, rainWord, "Sprinkles", sprinkles); a != "" {
 			days[i].Amounts = append(days[i].Amounts, a)
 		}
+		// The chart lists just the numbers, and nothing for amounts under the light limits.
+		days[i].Totals = []string{}
+		if days[i].Snow != "" && roundAmount(sn, "snow", units) >= flurries {
+			days[i].Totals = append(days[i].Totals, days[i].Snow)
+		}
+		if days[i].Rain != "" && roundAmount(rn, "rain", units) >= sprinkles {
+			days[i].Totals = append(days[i].Totals, days[i].Rain)
+		}
 	}
 
 	// What's still to come today (the block we're in counts), for the current-conditions icon.
