@@ -803,3 +803,13 @@ func TestWind(t *testing.T) {
 		t.Errorf("si gust = %d", days[1].Gust)
 	}
 }
+
+func TestAreaPath(t *testing.T) {
+	if areaPath([]float64{0, 0}) != "" {
+		t.Error("dry week should have no shape")
+	}
+	p := areaPath([]float64{0, 50, 0, 0})
+	if !strings.HasPrefix(p, "M0,1L0,1C") || !strings.HasSuffix(p, "L1,1Z") || !strings.Contains(p, " 0.375,0.5C") {
+		t.Errorf("path = %s", p)
+	}
+}

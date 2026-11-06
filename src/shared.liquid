@@ -30,6 +30,8 @@
   .wx__wind { position: absolute; top: 0; left: 0; right: 0; height: 15%; z-index: 1; display: flex; }
   .wx__wind-day { flex: 1 1 0; display: flex; align-items: flex-start; gap: 2px; padding: 0 2px; }
   .wx__wind-day > div { flex: 1 1 0; }
+  .wx__defs { position: absolute; }
+  .wx__area { position: absolute; inset: 0; z-index: 1; }
   .wx__past { position: absolute; top: 0; bottom: 0; left: 0; }
   .wx__dot {
     position: absolute; right: 0; z-index: 2; width: 14px; height: 14px; border-radius: 50%;
@@ -156,11 +158,18 @@
         {% if chart.freeze_y and chart.freeze_y > 12 and chart.freeze_y < 88 %}<span class="label label--small" style="top: {{ chart.freeze_y }}%;">{{ chart.freeze_label }}</span>{% endif %}
       </div>
       <div class="wx__plot">
+        {% comment %} Snow and rain as smooth filled shapes: shaded divs clipped to paths from the service, so the Framework still dithers them on 1-bit screens. {% endcomment %}
+        <svg class="wx__defs" width="0" height="0" aria-hidden="true"><defs>
+          {% if chart.snow_area != "" %}<clipPath id="{{ chart.area_id }}-snow" clipPathUnits="objectBoundingBox"><path d="{{ chart.snow_area }}"/></clipPath>{% endif %}
+          {% if chart.rain_area != "" %}<clipPath id="{{ chart.area_id }}-rain" clipPathUnits="objectBoundingBox"><path d="{{ chart.rain_area }}"/></clipPath>{% endif %}
+        </defs></svg>
+        {% if chart.rain_area != "" %}<div class="wx__area bg--gray-55" style="clip-path: url(#{{ chart.area_id }}-rain);"></div>{% endif %}
+        {% if chart.snow_area != "" %}<div class="wx__area bg--gray-35" style="clip-path: url(#{{ chart.area_id }}-snow);"></div>{% endif %}
         <div class="wx__bars">
           {% comment %} Four 6-hour bars per day, grouped so each day's bars sit evenly inside its day lines. {% endcomment %}
           {% for day in loc.days limit: chart.days %}
           {% assign first = forloop.index0 | times: 4 %}
-          <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
+          <div class="wx__bars-day"></div>
           {% endfor %}
         </div>
         {% if chart.wind %}

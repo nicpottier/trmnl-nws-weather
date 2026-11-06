@@ -122,6 +122,9 @@ type Chart struct {
 	TempMin   int       `json:"temp_min"`     // temperature at the bottom
 	BarKind   string    `json:"bar_kind"`     // "auto", "snow" or "precip"
 	Bars      []Bar     `json:"bars"`         // one per 6 hours
+	SnowArea  string    `json:"snow_area"`    // the snow bars as a smooth filled shape (see areaPath), or ""
+	RainArea  string    `json:"rain_area"`    // the same for rain
+	AreaID    string    `json:"area_id"`      // prefix for the shapes' clip-path ids
 	Wind      []float64 `json:"wind"`         // per 6 hours: gust bar height, 0-100 % of the wind band (0 when not windy)
 	HasAmount bool      `json:"has_amount"`   // any snow/rain at all in the window
 	Days      int       `json:"days"`         // columns in the chart
@@ -286,6 +289,16 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 		c.Bars = append(c.Bars, bar)
 	}
 	c.HasAmount = anyAmount
+	snowH, rainH := make([]float64, len(c.Bars)), make([]float64, len(c.Bars))
+	for k, bar := range c.Bars {
+		switch bar.Kind {
+		case "snow":
+			snowH[k] = bar.Height
+		case "rain":
+			rainH[k] = bar.Height
+		}
+	}
+	c.SnowArea, c.RainArea = areaPath(snowH), areaPath(rainH)
 
 	rainWord := "rain"
 	if mode == "precip" {
