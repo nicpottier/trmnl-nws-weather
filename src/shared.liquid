@@ -32,7 +32,9 @@
   .wx__plot svg.wx__wind { inset: 0 0 auto 0; width: 100%; height: 25%; overflow: visible; }
   .wx__gust { position: absolute; top: 0; transform: translateX(-50%); display: flex; align-items: flex-start; padding-top: 6px; box-sizing: border-box; white-space: nowrap; }
   .wx__gust { z-index: 2; }
-  .wx__gust .label { font-style: italic; background: #fff; padding: 0 6px; }
+  .wx__gust .label { font-style: italic; background: #fff; padding: 0 6px; gap: 3px; }
+  .wx__plot .wx__gust svg { position: static; width: 14px; height: 14px; }
+  .screen--lg .wx__plot .wx__gust svg { width: 26px; height: 26px; }
   .wx__past { position: absolute; top: 0; bottom: 0; left: 0; }
   .wx__dot {
     position: absolute; right: 0; z-index: 2; width: 14px; height: 14px; border-radius: 50%;
@@ -171,7 +173,7 @@
         </div>
         {% if chart.wind_line != "" %}
         <svg class="wx__wind" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
-        <div class="wx__wind">{% for gust in chart.gusts %}<div class="wx__gust" style="left: {{ gust.x }}%; height: {{ gust.depth }}%;"><span class="label label--small lg:label--large">{{ gust.labels.first }}</span></div>{% endfor %}</div>
+        <div class="wx__wind">{% for gust in chart.gusts %}<div class="wx__gust" style="left: {{ gust.x }}%; height: {{ gust.depth }}%;"><span class="label label--small lg:label--large">{{ gust.labels.first }}{% render "wx_icon", name: "wind", size: 14 %}</span></div>{% endfor %}</div>
         {% endif %}
         <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
