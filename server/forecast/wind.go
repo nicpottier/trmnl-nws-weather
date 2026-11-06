@@ -11,9 +11,10 @@ import (
 // windyGustMph nothing is drawn, so calm days stay clean; a bar fills the wind band at
 // fullGustMph. 40 mph is about where Stevens Pass starts holding its upper lifts.
 const (
-	windyGustMph = 25.0
-	fullGustMph  = 60.0
-	kmhPerMph    = 1.609
+	windyGustMph     = 25.0
+	fullGustMph      = 60.0
+	veryWindyGustMph = 40.0
+	kmhPerMph        = 1.609
 )
 
 // fillWind sets the chart's wind bars and each day's peak gust (Day.Gust, display units, or 0
@@ -39,6 +40,14 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 		}
 		c.Wind = append(c.Wind, h)
 		gusts = append(gusts, mph)
+		level := 0
+		switch {
+		case mph >= veryWindyGustMph:
+			level = 2
+		case mph >= windyGustMph:
+			level = 1
+		}
+		c.WindLevel = append(c.WindLevel, level)
 		if d := k / perDay; d < len(days) && mph >= windyGustMph {
 			g := int(math.Round(mph))
 			if units == "si" {
@@ -46,6 +55,17 @@ func (c *Chart) fillWind(grid *GridData, days []Day, start, end, now time.Time, 
 			}
 			days[d].Gust = max(days[d].Gust, g)
 		}
+	}
+
+	c.WindArea = hangingPath(c.Wind)
+	n := float64(len(c.Wind))
+	for _, r := range runs(len(c.Wind), func(k int) bool { return c.Wind[k] > 0 }) {
+		x := func(k float64) float64 { return math.Round(k/n*10000) / 10 }
+		c.WindLine += fmt.Sprintf("M%g,%g", x(float64(r[0])), c.Wind[r[0]])
+		for k := r[0]; k <= r[1]; k++ {
+			c.WindLine += fmt.Sprintf("L%g,%g", x(float64(k)+0.5), c.Wind[k])
+		}
+		c.WindLine += fmt.Sprintf("L%g,%g", x(float64(r[1]+1)), c.Wind[r[1]])
 	}
 
 	// One label per windy spell: its peak gust, centered under it.

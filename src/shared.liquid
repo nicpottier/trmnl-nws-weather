@@ -30,6 +30,13 @@
   .wx__wind { position: absolute; top: 0; left: 0; right: 0; height: 15%; z-index: 1; display: flex; }
   .wx__wind-day { flex: 1 1 0; display: flex; align-items: flex-start; gap: 2px; padding: 0 2px; }
   .wx__wind-day > div { flex: 1 1 0; }
+  .wx__defs { position: absolute; }
+  .wx__plot svg.wx__wind { inset: 0 0 auto 0; width: 100%; height: 15%; overflow: visible; }
+  .wx__wind--hatch > div { flex: 1 1 0; }
+  .wx__hatch-1 { background: repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 9px); }
+  .wx__hatch-2 { background: repeating-linear-gradient(135deg, currentColor 0 2.5px, transparent 2.5px 6px); }
+  .wx__wind-icon { position: absolute; top: 4px; transform: translateX(-50%); background: #fff; border-radius: 6px; padding: 0 3px; }
+  .screen--lg .wx__wind-icon svg { width: 56px; height: 56px; }
   .wx__past { position: absolute; top: 0; bottom: 0; left: 0; }
   .wx__dot {
     position: absolute; right: 0; z-index: 2; width: 14px; height: 14px; border-radius: 50%;
@@ -166,13 +173,25 @@
           <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
           {% endfor %}
         </div>
-        {% if chart.wind %}
+        {% assign wind_style = "bars" %}
+        {% if chart.gusts.size > 0 %}
+        {% case wind_style %}
+        {% when "curve" %}
+        <svg class="wx__wind" viewBox="0 0 1 1" preserveAspectRatio="none"><path d="{{ chart.wind_area }}" fill="#aaaaaa"/></svg>
+        {% when "line" %}
+        <svg class="wx__wind" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
+        {% when "hatch" %}
+        <div class="wx__wind wx__wind--hatch">{% for level in chart.wind_level %}<div class="wx__hatch-{{ level }}"></div>{% endfor %}</div>
+        {% when "icon" %}
+        <div class="wx__wind">{% for gust in chart.gusts %}<div class="wx__wind-icon" style="left: {{ gust.x }}%;">{% render "wx_icon", name: "wind", size: 40 %}</div>{% endfor %}</div>
+        {% else %}
         <div class="wx__wind">
           {% for day in loc.days limit: chart.days %}
           {% assign first = forloop.index0 | times: 4 %}
           <div class="wx__wind-day">{% for h in chart.wind offset: first limit: 4 %}<div{% if h > 0 %} class="bg--gray-55"{% endif %} style="height: {{ h }}%;"></div>{% endfor %}</div>
           {% endfor %}
         </div>
+        {% endcase %}
         {% endif %}
         <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}

@@ -192,6 +192,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	var chart *Chart
 	if grid != nil && len(days) > 0 {
 		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars, station, seen, back)
+		chart.AreaID = areaID(opts.Lat, opts.Lon)
 		nowIcon = currentIcon(nowIcon, hour.ShortForecast, chart, nowTemp, opts.Units)
 	}
 

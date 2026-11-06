@@ -113,18 +113,22 @@ func minTime(a, b time.Time) time.Time {
 // Chart is drawn in two layers: an SVG temperature line in a 1000x100 viewBox stretched over the
 // chart area, and HTML bars (so the Framework can dither their shading on 1-bit screens).
 type Chart struct {
-	TempPath  string    `json:"temp_path"`    // SVG path, viewBox 0 0 1000 100
-	FreezeY   *float64  `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
-	NowX      float64   `json:"now_x"`        // x of the current time, 0-1000
-	NowPct    float64   `json:"now_pct"`      // the same, as a percentage
-	NowY      *float64  `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
-	TempMax   int       `json:"temp_max"`     // temperature at the top of the chart
-	TempMin   int       `json:"temp_min"`     // temperature at the bottom
-	BarKind   string    `json:"bar_kind"`     // "auto", "snow" or "precip"
-	Bars      []Bar     `json:"bars"`         // one per 6 hours
-	Storms    []Storm   `json:"storms"`       // snow/rain totals per storm, centered under it
-	Gusts     []Storm   `json:"gusts"`        // peak gust per windy spell, centered under it
-	Wind      []float64 `json:"wind"`         // per 6 hours: gust bar height, 0-100 % of the wind band (0 when not windy)
+	TempPath  string    `json:"temp_path"` // SVG path, viewBox 0 0 1000 100
+	FreezeY   *float64  `json:"freeze_y"`  // y of 32°F / 0°C in the viewBox, if in range
+	NowX      float64   `json:"now_x"`     // x of the current time, 0-1000
+	NowPct    float64   `json:"now_pct"`   // the same, as a percentage
+	NowY      *float64  `json:"now_y"`     // y of the temperature line at now_x (0-100), if known
+	TempMax   int       `json:"temp_max"`  // temperature at the top of the chart
+	TempMin   int       `json:"temp_min"`  // temperature at the bottom
+	BarKind   string    `json:"bar_kind"`  // "auto", "snow" or "precip"
+	Bars      []Bar     `json:"bars"`      // one per 6 hours
+	Storms    []Storm   `json:"storms"`    // snow/rain totals per storm, centered under it
+	Gusts     []Storm   `json:"gusts"`     // peak gust per windy spell, centered under it
+	Wind      []float64 `json:"wind"`
+	WindArea  string    `json:"wind_area"`    // the wind bars as a smooth shape hanging from the top (see areaPath)
+	WindLine  string    `json:"wind_line"`    // the gusts as a line, viewBox 0 0 1000 100 over the wind band, windy spells only
+	WindLevel []int     `json:"wind_level"`   // per 6 hours: 0 calm, 1 windy (25-40 mph gusts), 2 very windy (40+)
+	AreaID    string    `json:"area_id"`      // prefix for this location's clip-path ids         // per 6 hours: gust bar height, 0-100 % of the wind band (0 when not windy)
 	HasAmount bool      `json:"has_amount"`   // any snow/rain at all in the window
 	Days      int       `json:"days"`         // columns in the chart
 	Snow      float64   `json:"snow_total"`   // total snowfall over the window, display units
