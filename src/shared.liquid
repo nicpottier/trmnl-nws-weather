@@ -171,7 +171,7 @@
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
       <div class="wx__amounts">
-        {% for amount in day.amounts %}<span class="label label--small">{{ amount }}</span>{% endfor %}
+        {% for amount in day.amounts %}<span class="label label--small lg:label--large">{{ amount }}</span>{% endfor %}
       </div>
       {% endfor %}
     </div>
