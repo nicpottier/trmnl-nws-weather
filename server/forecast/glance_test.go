@@ -316,12 +316,12 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	days := make([]Day, 3)
 
 	// auto: rain buckets as rain bars, snow buckets as snow bars, on fixed scales where half
-	// height is 0.3″ of rain or 3″ of snow per 6 hours: 0.5″ of rain is 83.3%, 1″ of snow 16.7%.
+	// height is 0.3″ of rain or 3″ of snow per 6 hours: 0.5″ of rain is 62.5%, 1″ of snow 12.5%.
 	c := buildChart(&grid, days, loc, now, "us", "auto", nil, nil, 0)
 	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
-	want := map[int]Bar{3: {83.3, "rain", "gray-55", false}, 6: {16.7, "snow", "gray-35", false}, 7: {16.7, "snow", "gray-35", false}}
+	want := map[int]Bar{3: {62.5, "rain", "gray-55", false}, 6: {12.5, "snow", "gray-35", false}, 7: {12.5, "snow", "gray-35", false}}
 	for i, b := range c.Bars {
 		if b != want[i] {
 			t.Errorf("bar %d = %+v, want %+v", i, b, want[i])
@@ -345,7 +345,7 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	// precip: all liquid, snow included as water (0.1″ per bucket), on the rain scale.
 	days = make([]Day, 3)
 	c = buildChart(&grid, days, loc, now, "us", "precip", nil, nil, 0)
-	if c.Bars[3].Height != 83.3 || c.Bars[6] != (Bar{16.7, "rain", "gray-55", false}) || c.Label != "Precip 0.70″" ||
+	if c.Bars[3].Height != 62.5 || c.Bars[6] != (Bar{12.5, "rain", "gray-55", false}) || c.Label != "Precip 0.70″" ||
 		!reflect.DeepEqual(days[1].Amounts, []string{"0.20″ precip"}) {
 		t.Errorf("precip chart = %+v, days %+v", c, days)
 	}
@@ -417,8 +417,8 @@ func TestShareScale(t *testing.T) {
 }
 
 func TestBarScale(t *testing.T) {
-	// Snow per 6 hours: linear with 3″ at half height, 6″ at full, more clipped to full.
-	for _, tc := range []struct{ amount, want float64 }{{0, 0}, {1, 16.7}, {1.5, 25}, {3, 50}, {4.5, 75}, {6, 100}, {24, 100}} {
+	// Snow per 6 hours: linear, 6″ makes the tallest bar (75% of the chart), more stops there.
+	for _, tc := range []struct{ amount, want float64 }{{0, 0}, {1, 12.5}, {1.5, 18.8}, {3, 37.5}, {4.5, 56.3}, {6, 75}, {24, 75}} {
 		if got := barHeight(tc.amount, snowHalfIn); got != tc.want {
 			t.Errorf("snow %v″ = %v%%, want %v%%", tc.amount, got, tc.want)
 		}

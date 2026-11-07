@@ -203,18 +203,21 @@ type Bar struct {
 var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
 
 // Bar scales, per 6 hours. They never change, so the bars read the same on every screen and
-// every day: a half-height bar is 3″ of snow (0.3″ of rain), height is proportional to the
-// amount, and anything past full height (6″ / 0.6″) is drawn at full height, with the day's
-// amount label giving the real number. Snow and rain use the usual 10:1 snow-to-water ratio,
-// so equal heights hold about the same amount of water.
+// every day. The tallest bar is maxBarPct of the chart, leaving the top for the temperature line
+// and the wind: 6″ of snow (0.6″ of rain) reaches it, half that reaches half of it, height is
+// proportional to the amount, and anything heavier stops there, with the storm's label giving the
+// real number. Snow and rain use the usual 10:1 snow-to-water ratio, so equal heights hold about
+// the same amount of water.
 const (
-	snowHalfIn, rainHalfIn = 3.0, 0.3
+	maxBarPct              = 75.0
+	snowHalfIn, rainHalfIn = 3.0, 0.3 // half of the tallest bar
 	snowHalfCm, rainHalfMm = 7.5, 7.5
 )
 
-// barHeight maps an amount to 0-100 % of the chart height, with half the height at half.
+// barHeight maps an amount to a percentage of the chart height: half (of the tallest bar) at
+// half, maxBarPct at twice that and beyond.
 func barHeight(amount, half float64) float64 {
-	return math.Min(100, math.Round(500*amount/half)/10)
+	return math.Min(maxBarPct, math.Round(10*maxBarPct/2*amount/half)/10)
 }
 
 // fillBars buckets snowfall and precipitation into 6-hour bars and per-day totals.
