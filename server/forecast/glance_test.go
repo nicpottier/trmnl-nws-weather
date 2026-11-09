@@ -809,3 +809,30 @@ func TestStorms(t *testing.T) {
 		t.Errorf("storms = %+v", c.Storms)
 	}
 }
+
+func TestBuildDaysOvernight(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	at := func(d, h int) time.Time { return time.Date(2026, 11, d, h, 0, 0, 0, loc) }
+	p := func(name string, start time.Time, day bool, temp int) Period {
+		return Period{Name: name, StartTime: start, EndTime: start.Add(6 * time.Hour), IsDaytime: day, Temperature: temp}
+	}
+	// Just after midnight: "Overnight" until 6 AM, then Monday. Monday must appear once.
+	periods := []Period{
+		p("Overnight", at(9, 1), false, 31),
+		p("Monday", at(9, 6), true, 48),
+		p("Monday Night", at(9, 18), false, 34),
+		p("Tuesday", at(10, 6), true, 49),
+		p("Tuesday Night", at(10, 18), false, 37),
+	}
+	days := buildDays(periods, nil, loc, 7)
+	if len(days) != 2 || days[0].Label != "Mon 9" || days[1].Label != "Tue 10" ||
+		days[0].Hi != 48 || days[0].Lo != 31 || days[1].Lo != 37 {
+		t.Errorf("days = %+v", days)
+	}
+	// Before midnight, "Tonight" is still today's own entry.
+	periods[0] = p("Tonight", at(8, 21), false, 31)
+	days = buildDays(periods, nil, loc, 7)
+	if len(days) != 3 || days[0].Label != "Sun 8" || days[1].Label != "Mon 9" {
+		t.Errorf("tonight days = %+v", days)
+	}
+}

@@ -379,12 +379,26 @@ func sameDay(a, b time.Time) bool {
 }
 
 // buildDays pairs each daytime period with the night after it to get the day's high and low.
-func buildDays(periods, hourly []Period, loc *time.Location, limit int) []Day {
-	days := []Day{}
+func buildDays(periods, hourly []Period, loc *time.Location, limit int) (days []Day) {
+	days = []Day{}
 	i := 0
 
+	// Between midnight and 6 AM NWS starts with "Overnight", a night period on the same date as the
+	// "Today" after it. It isn't a day of its own: its low folds into today's.
+	overnight := false
+	if !periods[0].IsDaytime && len(periods) > 1 && sameDay(periods[0].StartTime.In(loc), periods[1].StartTime.In(loc)) {
+		overnight = true
+		defer func() {
+			if len(days) > 0 {
+				days[0].Lo = min(days[0].Lo, periods[0].Temperature)
+			}
+		}()
+	}
+
 	// Late in the day NWS starts with "Tonight": today's high is the warmest hour left today.
-	if !periods[0].IsDaytime {
+	if overnight {
+		i = 1
+	} else if !periods[0].IsDaytime {
 		night := periods[0]
 		start := night.StartTime.In(loc)
 		hi := night.Temperature
