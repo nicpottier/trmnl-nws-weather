@@ -22,7 +22,10 @@ type Glance struct {
 	OutlookName string  `json:"outlook_name"`
 	Days        []Day   `json:"days"`
 	TodayIndex  int     `json:"today_index"` // days[today_index] is today; earlier days are measured
-	FreshSnow   string  `json:"fresh_snow"`  // measured new snow, e.g. "3″ 24h · 7″ 48h" or "7″ 48h", or ""
+	FreshSnow   string  `json:"fresh_snow"`
+	// Issues names the sources of past data that failed this time (e.g. "SNOTEL"), so the screen can
+	// say something is wrong instead of quietly showing less.
+	Issues []string `json:"issues"`  // measured new snow, e.g. "3″ 24h · 7″ 48h" or "7″ 48h", or ""
 	Alerts      []Alert `json:"alerts"`
 	Scale       Scale   `json:"scale"`
 	Chart       *Chart  `json:"chart,omitempty"`
@@ -88,6 +91,8 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		grid               *GridData
 		periodsErr, hrsErr error
 		stations, snotel   []stationSeries
+		stationsErr        error
+		snotelErr          error
 	)
 	// Station readings since yesterday's local midnight (plus an hour, for the first hourly
 	// average), and at least the 48 hours the fresh-snow total covers.
@@ -103,11 +108,11 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	go func() { defer wg.Done(); grid, _ = nws.GridData(ctx, pp.ForecastGridData) }() // chart is optional
 	go func() {
 		defer wg.Done()
-		stations, _ = nws.stationSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since)
+		stations, stationsErr = nws.stationSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since)
 	}()
 	go func() {
 		defer wg.Done()
-		snotel, _ = nws.snotelSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since, now)
+		snotel, snotelErr = nws.snotelSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since, now)
 	}()
 	wg.Wait()
 
@@ -129,8 +134,18 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		loc = periods[0].StartTime.Location()
 	}
 	localNow := now.In(loc)
+	issues := []string{}
+	if stationsErr != nil {
+		log.Printf("stations for %.4f,%.4f: %v", opts.Lat, opts.Lon, stationsErr)
+		issues = append(issues, "stations")
+	}
+	if snotelErr != nil {
+		log.Printf("snotel for %.4f,%.4f: %v", opts.Lat, opts.Lon, snotelErr)
+		issues = append(issues, "SNOTEL")
+	}
 	if err := nws.addCWOPRain(ctx, stations, loc, now); err != nil { // rain from home weather stations (aprs.go)
 		log.Printf("cwop rain for %.4f,%.4f: %v", opts.Lat, opts.Lon, err)
+		issues = append(issues, "home stations")
 	}
 
 	hour := currentHour(hourly, now)
@@ -145,6 +160,9 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		pointElevM = *grid.Properties.Elevation.Value
 	}
 	station := pickStation(stations, pointElevM, now)
+	if station == nil && stationsErr == nil {
+		issues = append(issues, "no station readings")
+	}
 	obs, err := (*Observation)(nil), error(nil)
 	if station != nil {
 		obs = station.latest()
@@ -243,6 +261,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		Days:        days,
 		TodayIndex:  back,
 		FreshSnow:   freshSnow(seen, now, opts.Units),
+		Issues:      issues,
 		Alerts:      alerts[:min(len(alerts), 3)],
 		Scale:       Scale{Min: lo, Max: hi},
 		Chart:       chart,

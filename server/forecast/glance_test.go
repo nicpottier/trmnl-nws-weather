@@ -159,6 +159,10 @@ func TestBuildGlanceMorning(t *testing.T) {
 	if g.Location != "Leavenworth, WA" || g.Unit != "F" || g.Updated != "7:45 AM" {
 		t.Errorf("header = %q %q %q", g.Location, g.Unit, g.Updated)
 	}
+	// No station history at all is worth flagging on the screen.
+	if !reflect.DeepEqual(g.Issues, []string{"no station readings"}) {
+		t.Errorf("issues = %v", g.Issues)
+	}
 	// Measured 35°F at LVN11 (via forecast.weather.gov), not the hourly forecast's 28°F.
 	if g.Now.Temp != 35 || g.Now.Source != "LVN11" || g.Now.ObservedAt != "7:00 AM" || g.Now.Humidity != 77 {
 		t.Errorf("now = %+v", g.Now)
@@ -594,6 +598,9 @@ func TestBuildGlanceWithStations(t *testing.T) {
 	g, err := BuildGlance(context.Background(), newNWSClient(), Options{Lat: 47.5962, Lon: -120.6615, Units: "us", Days: 7}, now)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(g.Issues) != 0 {
+		t.Errorf("issues = %v", g.Issues)
 	}
 	// TUM42 is closer but 3,000 ft higher, so LVN11's 7 AM reading (36°F) wins.
 	if g.Now.Source != "LVN11" || g.Now.Temp != 36 || g.Now.ObservedAt != "7:00 AM" {

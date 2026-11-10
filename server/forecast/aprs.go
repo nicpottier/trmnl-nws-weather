@@ -3,6 +3,8 @@ package forecast
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"math"
 	"net/url"
@@ -49,8 +51,9 @@ type aprsSample struct {
 }
 
 type aprsResponse struct {
-	Result  string `json:"result"`
-	Entries []struct {
+	Result      string `json:"result"`
+	Description string `json:"description"`
+	Entries     []struct {
 		Name   string `json:"name"`
 		Time   string `json:"time"`
 		Rain1h string `json:"rain_1h"`
@@ -80,7 +83,10 @@ func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, loc
 	r := &aprsResponse{}
 	u := aprsBase + "?what=wx&format=json&name=" + url.QueryEscape(strings.Join(calls, ",")) + "&apikey=" + url.QueryEscape(aprsKey)
 	if err := c.getAs(ctx, u, "application/json", r); err != nil {
-		return err
+		return fmt.Errorf("aprs.fi: %w", redactKey(err))
+	}
+	if r.Result != "ok" {
+		return fmt.Errorf("aprs.fi: %s %s", r.Result, r.Description)
 	}
 
 	// Save each new report, drop old ones, and read back the history: one Redis round trip.
@@ -104,7 +110,7 @@ func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, loc
 	}
 	results, err := aprsStore.pipeline(ctx, cmds...)
 	if err != nil {
-		return err
+		return fmt.Errorf("saving rain history: %w", err)
 	}
 
 	k := 0
@@ -172,4 +178,16 @@ func rainFromSamples(samples []aprsSample, loc *time.Location) []reading {
 		out = append(out, reading{tb, math.Round(mm/25.4*1000) / 1000})
 	}
 	return out
+}
+
+// redactKey keeps the API key out of errors (they quote the request URL) and so out of the logs.
+func redactKey(err error) error {
+	msg := err.Error()
+	if aprsKey == "" {
+		return err
+	}
+	for _, k := range []string{aprsKey, url.QueryEscape(aprsKey)} {
+		msg = strings.ReplaceAll(msg, k, "REDACTED")
+	}
+	return errors.New(msg)
 }

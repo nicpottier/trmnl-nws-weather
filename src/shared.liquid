@@ -140,6 +140,7 @@
       <span class="label label--small lg:label--base" data-clamp="2">{{ loc.now.short }}</span>
       {% if loc.fresh_snow != blank %}<div class="wx__fresh">{% render "wx_icon", name: "snowflake", size: 14 %}<span class="label label--small lg:label--base" data-clamp="1">{{ loc.fresh_snow }}</span></div>{% endif %}
       {{ alert }}
+      {% if loc.issues.size > 0 %}<span class="label label--small label--outline" data-clamp="1">⚠ Missing: {{ loc.issues | join: ", " }}</span>{% endif %}
     </div>
     {% if updated != blank %}<span class="wx__updated label label--small label--gray 1bit:text--black">Updated {{ updated }}</span>{% endif %}
   {% endunless %}
