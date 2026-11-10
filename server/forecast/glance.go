@@ -3,6 +3,7 @@ package forecast
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 	"sync"
@@ -128,7 +129,9 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		loc = periods[0].StartTime.Location()
 	}
 	localNow := now.In(loc)
-	_ = nws.addCWOPRain(ctx, stations, loc, now) // rain from home weather stations, when configured (aprs.go)
+	if err := nws.addCWOPRain(ctx, stations, loc, now); err != nil { // rain from home weather stations (aprs.go)
+		log.Printf("cwop rain for %.4f,%.4f: %v", opts.Lat, opts.Lon, err)
+	}
 
 	hour := currentHour(hourly, now)
 	if hour == nil {

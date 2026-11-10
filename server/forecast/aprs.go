@@ -3,6 +3,7 @@ package forecast
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"math"
 	"net/url"
 	"os"
@@ -121,6 +122,11 @@ func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, loc
 				}
 			}
 			series[index[call]].Precip = rainFromSamples(samples, loc)
+			total := 0.0
+			for _, p := range series[index[call]].Precip {
+				total += p.V
+			}
+			log.Printf("cwop %s: %d saved reports, %.2f″ of rain", call, len(samples), total)
 		}
 		k++
 	}
