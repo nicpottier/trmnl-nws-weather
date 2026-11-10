@@ -50,8 +50,9 @@ func TestClassify(t *testing.T) {
 }
 
 // fakeNWS serves the recorded Leavenworth responses in testdata/, optionally dropping
-// leading forecast periods to simulate fetching later in the day.
-func fakeNWS(t *testing.T, dropPeriods int) *httptest.Server {
+// leading forecast periods to simulate fetching later in the day. Without withStations the state
+// has no stations, so current conditions fall back to forecast.weather.gov and the API's latest.
+func fakeNWS(t *testing.T, dropPeriods int, withStations bool) *httptest.Server {
 	t.Helper()
 	read := func(name string) map[string]any {
 		b, err := os.ReadFile("testdata/" + name)
@@ -85,23 +86,35 @@ func fakeNWS(t *testing.T, dropPeriods int) *httptest.Server {
 			v = read("grid.json")
 		case r.URL.Path == "/MapClick.php":
 			v = read("mapclick.json") // LVN11, 35°F at 7:00 AM PDT
-		case r.URL.Path == "/stations":
-			v = read("stations.json") // LVN11, TDRYD, TBLEW, STS54, KEAT
-		case r.URL.Path == "/synoptic/stations/timeseries":
-			// LVN11 (1190 ft, at the point) reporting hourly 1-7 AM PDT, and a stale higher station.
-			obs := map[string]any{"date_time": []string{}, "air_temp_set_1": []any{}}
-			for h := 8; h <= 14; h++ {
-				obs["date_time"] = append(obs["date_time"].([]string), fmt.Sprintf("2026-10-25T%02d:00:00Z", h))
-				obs["air_temp_set_1"] = append(obs["air_temp_set_1"].([]any), 30.0+float64(h-8))
+		case r.URL.Path == "/stations" && r.URL.Query().Get("state") == "":
+			v = read("stations.json") // the point's list: LVN11, TDRYD, TBLEW, STS54, KEAT
+		case r.URL.Path == "/stations" && r.URL.Query().Get("state") == "WA" && !withStations:
+			v = map[string]any{"features": []any{}}
+		case r.URL.Path == "/stations" && r.URL.Query().Get("state") == "WA":
+			// The state's stations: TUM42 is nearer the point than LVN11 but 3,000 ft higher.
+			station := func(id string, lon, lat, elevM float64) map[string]any {
+				return map[string]any{
+					"geometry":   map[string]any{"coordinates": []float64{lon, lat}},
+					"properties": map[string]any{"stationIdentifier": id, "name": id, "elevation": map[string]any{"value": elevM}},
+				}
 			}
-			v = map[string]any{
-				"SUMMARY": map[string]any{"RESPONSE_CODE": 1, "RESPONSE_MESSAGE": "OK"},
-				"STATION": []any{
-					map[string]any{"STID": "TUM42", "NAME": "Tumwater Mountain", "ELEVATION": "4180", "DISTANCE": 3.0,
-						"OBSERVATIONS": map[string]any{"date_time": []string{"2026-10-25T14:00:00Z"}, "air_temp_set_1": []any{20.0}}},
-					map[string]any{"STID": "LVN11", "NAME": "Leavenworth", "ELEVATION": "1190.0", "DISTANCE": 0.5, "OBSERVATIONS": obs},
-				},
+			v = map[string]any{"features": []any{
+				station("TUM42", -120.6615, 47.5970, 1274), station("LVN11", -120.6700, 47.5990, 362.7),
+				station("KEAT", -120.2068, 47.3977, 374), // 39 km away
+			}}
+		case strings.HasSuffix(r.URL.Path, "/observations") && strings.Contains(r.URL.Path, "/LVN11/"):
+			// LVN11 hourly from 1 to 7 AM PDT, 30-36°F (as °C, newest first like the API).
+			feats := []any{}
+			for h := 14; h >= 8; h-- {
+				c := (30.0 + float64(h-8) - 32) * 5 / 9
+				feats = append(feats, map[string]any{"properties": map[string]any{
+					"timestamp": fmt.Sprintf("2026-10-25T%02d:00:00Z", h), "temperature": map[string]any{"value": c}}})
 			}
+			v = map[string]any{"features": feats}
+		case strings.HasSuffix(r.URL.Path, "/observations") && strings.Contains(r.URL.Path, "/TUM42/"):
+			v = map[string]any{"features": []any{map[string]any{"properties": map[string]any{
+				"timestamp": "2026-10-25T14:00:00Z", "temperature": map[string]any{"value": -6.7},
+				"windGust": map[string]any{"value": 48.3, "unitCode": "wmoUnit:km_h-1"}}}}}
 		case strings.HasPrefix(r.URL.Path, "/stations/"):
 			id := strings.Split(r.URL.Path, "/")[2]
 			if id != "KEAT" {
@@ -123,7 +136,7 @@ func fakeNWS(t *testing.T, dropPeriods int) *httptest.Server {
 
 func buildFromFixtures(t *testing.T, dropPeriods int, now time.Time) *Glance {
 	t.Helper()
-	srv := fakeNWS(t, dropPeriods)
+	srv := fakeNWS(t, dropPeriods, false)
 	oldNWS, oldForecast := nwsBase, forecastBase
 	nwsBase, forecastBase = srv.URL, srv.URL
 	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
@@ -257,7 +270,7 @@ func TestParseRequest(t *testing.T) {
 }
 
 func TestHandler(t *testing.T) {
-	srv := fakeNWS(t, 0)
+	srv := fakeNWS(t, 0, false)
 	oldNWS, oldForecast := nwsBase, forecastBase
 	nwsBase, forecastBase = srv.URL, srv.URL
 	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
@@ -378,7 +391,7 @@ func TestMapClickRejectsDistantElevation(t *testing.T) {
 }
 
 func TestServeMultipleLocations(t *testing.T) {
-	srv := fakeNWS(t, 0)
+	srv := fakeNWS(t, 0, false)
 	oldNWS, oldForecast := nwsBase, forecastBase
 	nwsBase, forecastBase = srv.URL, srv.URL
 	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
@@ -567,11 +580,11 @@ func TestMergeObserved(t *testing.T) {
 	}
 }
 
-func TestBuildGlanceWithSynoptic(t *testing.T) {
-	srv := fakeNWS(t, 0)
-	oldNWS, oldForecast, oldSyn, oldTok := nwsBase, forecastBase, synopticBase, synopticToken
-	nwsBase, forecastBase, synopticBase, synopticToken = srv.URL, srv.URL, srv.URL+"/synoptic", "test-token"
-	t.Cleanup(func() { nwsBase, forecastBase, synopticBase, synopticToken = oldNWS, oldForecast, oldSyn, oldTok })
+func TestBuildGlanceWithStations(t *testing.T) {
+	srv := fakeNWS(t, 0, true)
+	oldNWS, oldForecast := nwsBase, forecastBase
+	nwsBase, forecastBase = srv.URL, srv.URL
+	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
 
 	now := time.Date(2026, 10, 25, 14, 45, 0, 0, time.UTC) // 7:45 AM PDT
 	g, err := BuildGlance(context.Background(), newNWSClient(), Options{Lat: 47.5962, Lon: -120.6615, Units: "us", Days: 7}, now)
@@ -600,7 +613,19 @@ func TestObservedRealStevensWeek(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &synopticResponse{}
+	// Recorded from Synoptic's timeseries API, which the service no longer uses.
+	r := &struct {
+		Station []struct {
+			STID         string      `json:"STID"`
+			Elevation    looseNumber `json:"ELEVATION"`
+			Observations struct {
+				DateTime  []time.Time `json:"date_time"`
+				AirTemp   []*float64  `json:"air_temp_set_1"`
+				SnowDepth []*float64  `json:"snow_depth_set_1"`
+				Precip    []*float64  `json:"precip_accum_one_hour_set_1"`
+			} `json:"OBSERVATIONS"`
+		} `json:"STATION"`
+	}{}
 	if err := json.Unmarshal(b, r); err != nil {
 		t.Fatal(err)
 	}

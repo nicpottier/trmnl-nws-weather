@@ -100,7 +100,10 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	go func() { defer wg.Done(); hourly, hrsErr = nws.Forecast(ctx, pp.ForecastHourly, opts.Units) }()
 	go func() { defer wg.Done(); alerts, _ = nws.Alerts(ctx, opts.Lat, opts.Lon) }()
 	go func() { defer wg.Done(); grid, _ = nws.GridData(ctx, pp.ForecastGridData) }() // chart is optional
-	go func() { defer wg.Done(); stations, _ = nws.synopticSeries(ctx, opts.Lat, opts.Lon, since, now) }()
+	go func() {
+		defer wg.Done()
+		stations, _ = nws.stationSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since)
+	}()
 	wg.Wait()
 
 	if periodsErr != nil {
@@ -298,7 +301,11 @@ func includeObserved(today *Day, s *stationSeries, localNow time.Time, units str
 	}
 }
 
-// observedDay builds a past day's entry from a station's readings, if they cover most of it.
+// minObservedDayHours is how many hours of a past day a station must have reported for the day to
+// be drawn from its readings. api.weather.gov's copy of LVN11 skips a few hours most days.
+const minObservedDayHours = 12
+
+// observedDay builds a past day's entry from a station's readings, if they cover enough of it.
 func observedDay(s *stationSeries, from time.Time, units string) (Day, bool) {
 	to := from.AddDate(0, 0, 1)
 	hours := map[int64]bool{}
@@ -311,7 +318,7 @@ func observedDay(s *stationSeries, from time.Time, units string) (Day, bool) {
 		v := fToUnits(s.TempF[i], units)
 		hi, lo = max(hi, v), min(lo, v)
 	}
-	if len(hours) < 18 {
+	if len(hours) < minObservedDayHours {
 		return Day{}, false
 	}
 	return Day{

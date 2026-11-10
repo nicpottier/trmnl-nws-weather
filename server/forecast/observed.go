@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Measured snow and rain, from the stations near a location (via Synoptic).
+// Measured snow, rain and wind, from the stations near a location.
 //
 // Snowfall isn't measured directly: the stations' "new snow" values are unusable (a steady
 // 0.3″ an hour with bare ground, or 110″ an hour). Snow depth is real but noisy (±1″ hour to

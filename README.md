@@ -13,8 +13,9 @@ one above the other. For each location you get:
   with the storm's label giving the real amount
 - wind, only when gusts reach 25 mph: a dotted curve hanging from the top of the chart for each windy spell, deeper
   for stronger gusts (the bottom of its band is 60 mph), with the spell's peak gust in it
-- with station data (see below), the chart starts yesterday: the shaded past shows measured temperatures, and
-  measured snow and rain, so you can tell what actually fell from what is forecast
+- with station data (see below), the chart starts yesterday: the shaded past shows measured temperatures and
+  wind (and measured snow and rain where a source has them), so you can tell what actually happened from what is
+  forecast
 - at places with snow-depth sensors, the new snow measured in the last 24 and 48 hours (e.g. "❄ 4″ 24h · 9″
   48h"), the number that says whether the skiing is good
 
@@ -52,20 +53,26 @@ match the NWS forecast text.
 The current temperature is a measured observation, not the forecast for this hour. It is taken from the first
 source with a reading less than 2 hours old:
 
-1. With `SYNOPTIC_TOKEN` set, the nearest [Synoptic Data](https://synopticdata.com) (MesoWest) station: for example
-   LVN11 in Leavenworth and STS40 (Schmidt Haus, 3,950 ft) at Stevens Pass. That station's readings also draw
-   yesterday and the part of today that has already happened, and widen today's low/high to include them. NWS
-   forecasts start when they're issued, so without this the morning is often blank.
+1. The nearest station within 10 miles in api.weather.gov's list for the state: for example LVN11 in Leavenworth
+   and STS40 (Schmidt Haus, 3,950 ft) at Stevens Pass. api.weather.gov carries these local networks, including
+   NWAC's Stevens Pass stations, with temperatures and (where measured) wind gusts. That station's readings also
+   draw yesterday and the part of today that has already happened, and widen today's low/high to include them.
+   NWS forecasts start when they're issued, so without this the morning is often blank. (The forecast point's own
+   station list isn't used for this: for Stevens Pass it starts at Skykomish.)
 2. forecast.weather.gov's point-forecast JSON (`MapClick.php?FcstType=json`), the same feed behind the
-   "Current conditions" box on the NWS web page. For Leavenworth that is station LVN11. This endpoint is
-   undocumented, but it's the only place LVN11 is current; api.weather.gov's copy of LVN11 has been days behind.
-3. The nearest api.weather.gov observation station with a fresh reading (e.g. KEAT, Wenatchee airport).
+   "Current conditions" box on the NWS web page. This endpoint is undocumented.
+3. The nearest station in the forecast point's api.weather.gov list with a fresh reading (e.g. KEAT, Wenatchee
+   airport).
 4. The hourly forecast for the current hour.
 
 A station whose elevation differs from the forecast point's by more than 300 m (about 1,000 ft) is skipped. Without
 this, Stevens Pass would show Skykomish's valley reading (SKKW1, 2,028 ft) instead of conditions at about 4,900 ft.
 
-Measured snow and rain come from all the stations near the location's elevation. Snowfall isn't measured directly
+Measured wind gusts are the median of each nearby station's peak in each 6-hour block. api.weather.gov has no
+precipitation or snow depth for these stations, so for now the past blocks show the forecast's rain and snow, and
+the fresh-snow line is off. When a source with gauges and depth sensors is added (NWAC's Stevens Pass stations),
+this is how they're used: measured snow and rain come from all the stations near the location's elevation.
+Snowfall isn't measured directly
 (the stations' "new snow" readings are unusable), so new snow is the rise in snow depth: each station's depth is
 cleaned of spikes, impossible values and sensor jumps and smoothed over 3 hours; rises only count while the station
 is at 35°F or colder (sun warms depth sensors too); stations whose depth swings more than an inch hour to hour are
@@ -104,8 +111,6 @@ The service is the same code on either platform. Vercel is the easier one.
    - `ACCESS_TOKEN`: a random string, e.g. from `openssl rand -hex 16`. Requests must include `?token=` with it.
    - `NWS_USER_AGENT`: something with your contact, e.g. `trmnl-nws-weather (you@example.com)`. NWS asks API
      clients to identify themselves.
-   - `SYNOPTIC_TOKEN` (optional): a Synoptic Data token, for local station readings (see above). Create one from
-     your API key with `https://api.synopticdata.com/v2/auth?apikey=YOUR_KEY`, or in Synoptic's account console.
 4. Click **Deploy**. Your service URL is the production domain, e.g. `https://trmnl-nws-weather.vercel.app/`.
    Every push to `main` redeploys it.
 

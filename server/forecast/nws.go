@@ -41,7 +41,8 @@ type Points struct {
 }
 
 type Quantity struct {
-	Value *float64 `json:"value"`
+	Value    *float64 `json:"value"`
+	UnitCode string   `json:"unitCode"`
 }
 
 func (q Quantity) Or(def float64) float64 {
@@ -92,12 +93,13 @@ type nwsClient struct {
 	http *http.Client
 
 	// Grid lookups never change for a location, so warm Lambdas skip them.
-	mu     sync.Mutex
-	points map[string]*Points
+	mu       sync.Mutex
+	points   map[string]*Points
+	stations map[string]cachedStations // by state
 }
 
 func newNWSClient() *nwsClient {
-	return &nwsClient{http: &http.Client{Timeout: 8 * time.Second}, points: map[string]*Points{}}
+	return &nwsClient{http: &http.Client{Timeout: 8 * time.Second}, points: map[string]*Points{}, stations: map[string]cachedStations{}}
 }
 
 func (c *nwsClient) get(ctx context.Context, url string, v any) error {
