@@ -128,6 +128,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		loc = periods[0].StartTime.Location()
 	}
 	localNow := now.In(loc)
+	_ = nws.addCWOPRain(ctx, stations, loc, now) // rain from home weather stations, when configured (aprs.go)
 
 	hour := currentHour(hourly, now)
 	if hour == nil {

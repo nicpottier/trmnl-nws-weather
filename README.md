@@ -71,9 +71,16 @@ this, Stevens Pass would show Skykomish's valley reading (SKKW1, 2,028 ft) inste
 Measured wind gusts are the median of each nearby station's peak in each 6-hour block. api.weather.gov has no
 precipitation or snow depth for these stations, so measured rain and snow come from NRCS SNOTEL stations within
 10 miles, through USDA's open [AWDB web service](https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html)
-(no key). Stevens Pass has one (site 791, 3,940 ft); Leavenworth has none, so its past blocks show the forecast's
-amounts where the forecast still covers them (NWS forecasts start when they're issued, so yesterday has none).
-SNOTEL reports precipitation as a running total in tenths of an inch, so light amounts show in 0.1″ steps.
+(no key). Stevens Pass has one (site 791, 3,940 ft). SNOTEL reports precipitation as a running total in tenths
+of an inch, so light amounts show in 0.1″ steps.
+
+Leavenworth has no SNOTEL site, but it has home weather stations in the Citizen Weather Observer Program (CWOP):
+EW5752 and FW4618, listed by api.weather.gov as E5752 and F4618 (without their rain). [aprs.fi](https://aprs.fi)
+has their rain, but its API only returns each station's latest report (rain in the last hour, the last 24 hours
+and since midnight). So with `APRS_FI_KEY` set and a Redis store connected, every run saves those reports and
+rebuilds the hourly rain from the saved history (`server/forecast/aprs.go`). History starts when this is set
+up, so the first day or two fill in gradually. Without them, Leavenworth's past blocks show the forecast's amounts
+where the forecast still covers them (NWS forecasts start when they're issued, so yesterday has none).
 
 Measured snow and rain come from all the stations near the location's elevation. Snowfall isn't measured directly
 (the stations' "new snow" readings are unusable), so new snow is the rise in snow depth: each station's depth is
@@ -114,6 +121,9 @@ The service is the same code on either platform. Vercel is the easier one.
    - `ACCESS_TOKEN`: a random string, e.g. from `openssl rand -hex 16`. Requests must include `?token=` with it.
    - `NWS_USER_AGENT`: something with your contact, e.g. `trmnl-nws-weather (you@example.com)`. NWS asks API
      clients to identify themselves.
+   - `APRS_FI_KEY` (optional): a free [aprs.fi API key](https://aprs.fi/page/api), for rain from CWOP home
+     weather stations (see above). It also needs a Redis store: in the project's **Storage** tab, add Upstash for
+     Redis (the free plan is plenty) and connect it. Vercel then sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
 4. Click **Deploy**. Your service URL is the production domain, e.g. `https://trmnl-nws-weather.vercel.app/`.
    Every push to `main` redeploys it.
 
