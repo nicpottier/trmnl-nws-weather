@@ -96,19 +96,25 @@ type nwsClient struct {
 	mu       sync.Mutex
 	points   map[string]*Points
 	stations map[string]cachedStations // by state
+	snotel   map[string]cachedSnotel   // by state
 }
 
 func newNWSClient() *nwsClient {
-	return &nwsClient{http: &http.Client{Timeout: 8 * time.Second}, points: map[string]*Points{}, stations: map[string]cachedStations{}}
+	return &nwsClient{http: &http.Client{Timeout: 8 * time.Second}, points: map[string]*Points{}, stations: map[string]cachedStations{}, snotel: map[string]cachedSnotel{}}
 }
 
 func (c *nwsClient) get(ctx context.Context, url string, v any) error {
+	return c.getAs(ctx, url, "application/geo+json", v)
+}
+
+// getAs fetches JSON with the given Accept header (USDA's AWDB service refuses geo+json).
+func (c *nwsClient) getAs(ctx context.Context, url, accept string, v any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/geo+json")
+	req.Header.Set("Accept", accept)
 
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {

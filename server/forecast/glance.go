@@ -86,7 +86,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		alerts             []Alert
 		grid               *GridData
 		periodsErr, hrsErr error
-		stations           []stationSeries
+		stations, snotel   []stationSeries
 	)
 	// Station readings since yesterday's local midnight (plus an hour, for the first hourly
 	// average), and at least the 48 hours the fresh-snow total covers.
@@ -95,7 +95,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		l := now.In(tz)
 		since = minTime(since, time.Date(l.Year(), l.Month(), l.Day()-1, 0, 0, 0, 0, tz).Add(-time.Hour))
 	}
-	wg.Add(5)
+	wg.Add(6)
 	go func() { defer wg.Done(); periods, periodsErr = nws.Forecast(ctx, pp.Forecast, opts.Units) }()
 	go func() { defer wg.Done(); hourly, hrsErr = nws.Forecast(ctx, pp.ForecastHourly, opts.Units) }()
 	go func() { defer wg.Done(); alerts, _ = nws.Alerts(ctx, opts.Lat, opts.Lon) }()
@@ -103,6 +103,10 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	go func() {
 		defer wg.Done()
 		stations, _ = nws.stationSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since)
+	}()
+	go func() {
+		defer wg.Done()
+		snotel, _ = nws.snotelSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since, now)
 	}()
 	wg.Wait()
 
@@ -168,7 +172,8 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	if station != nil && len(days) > back {
 		includeObserved(&days[back], station, localNow, opts.Units)
 	}
-	seen := newObserved(stations, pointElevM)
+	// Measured snow and rain come from SNOTEL (api.weather.gov's stations have neither); wind from both.
+	seen := newObserved(append(append([]stationSeries{}, stations...), snotel...), pointElevM)
 
 	nowIcon, _ := classify(hour.ShortForecast, hour.Pop())
 	if !hour.IsDaytime {

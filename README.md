@@ -16,7 +16,7 @@ one above the other. For each location you get:
 - with station data (see below), the chart starts yesterday: the shaded past shows measured temperatures and
   wind (and measured snow and rain where a source has them), so you can tell what actually happened from what is
   forecast
-- at places with snow-depth sensors, the new snow measured in the last 24 and 48 hours (e.g. "❄ 4″ 24h · 9″
+- at places with a SNOTEL snow-depth sensor nearby, the new snow measured in the last 24 and 48 hours (e.g. "❄ 4″ 24h · 9″
   48h"), the number that says whether the skiing is good
 
 Defaults to Leavenworth, WA and Stevens Pass, WA. Shown on a TRMNL X (1872×1404, 16 grays):
@@ -69,10 +69,13 @@ A station whose elevation differs from the forecast point's by more than 300 m (
 this, Stevens Pass would show Skykomish's valley reading (SKKW1, 2,028 ft) instead of conditions at about 4,900 ft.
 
 Measured wind gusts are the median of each nearby station's peak in each 6-hour block. api.weather.gov has no
-precipitation or snow depth for these stations, so for now the past blocks show the forecast's rain and snow, and
-the fresh-snow line is off. When a source with gauges and depth sensors is added (NWAC's Stevens Pass stations),
-this is how they're used: measured snow and rain come from all the stations near the location's elevation.
-Snowfall isn't measured directly
+precipitation or snow depth for these stations, so measured rain and snow come from NRCS SNOTEL stations within
+10 miles, through USDA's open [AWDB web service](https://wcc.sc.egov.usda.gov/awdbRestApi/swagger-ui/index.html)
+(no key). Stevens Pass has one (site 791, 3,940 ft); Leavenworth has none, so its past blocks show the forecast's
+amounts where the forecast still covers them (NWS forecasts start when they're issued, so yesterday has none).
+SNOTEL reports precipitation as a running total in tenths of an inch, so light amounts show in 0.1″ steps.
+
+Measured snow and rain come from all the stations near the location's elevation. Snowfall isn't measured directly
 (the stations' "new snow" readings are unusable), so new snow is the rise in snow depth: each station's depth is
 cleaned of spikes, impossible values and sensor jumps and smoothed over 3 hours; rises only count while the station
 is at 35°F or colder (sun warms depth sensors too); stations whose depth swings more than an inch hour to hour are

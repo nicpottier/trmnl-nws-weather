@@ -121,6 +121,10 @@ func fakeNWS(t *testing.T, dropPeriods int, withStations bool) *httptest.Server 
 				id = "LVN11" // the API's copy of every other station stopped on Oct 22
 			}
 			v = read("obs_" + id + ".json")
+		case r.URL.Path == "/snotel/stations":
+			v2 := []any{} // no SNOTEL station near Leavenworth
+			json.NewEncoder(w).Encode(v2)
+			return
 		case r.URL.Path == "/alerts/active":
 			v = map[string]any{"features": []any{map[string]any{"properties": map[string]any{
 				"event": "Winter Weather Advisory", "severity": "Moderate", "status": "Actual", "messageType": "Alert"}}}}
@@ -137,9 +141,9 @@ func fakeNWS(t *testing.T, dropPeriods int, withStations bool) *httptest.Server 
 func buildFromFixtures(t *testing.T, dropPeriods int, now time.Time) *Glance {
 	t.Helper()
 	srv := fakeNWS(t, dropPeriods, false)
-	oldNWS, oldForecast := nwsBase, forecastBase
-	nwsBase, forecastBase = srv.URL, srv.URL
-	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
+	oldNWS, oldForecast, oldSnotel := nwsBase, forecastBase, snotelBase
+	nwsBase, forecastBase, snotelBase = srv.URL, srv.URL, srv.URL+"/snotel"
+	t.Cleanup(func() { nwsBase, forecastBase, snotelBase = oldNWS, oldForecast, oldSnotel })
 
 	g, err := BuildGlance(context.Background(), newNWSClient(), Options{Lat: 47.5962, Lon: -120.6615, Units: "us", Days: 7}, now)
 	if err != nil {
@@ -271,9 +275,9 @@ func TestParseRequest(t *testing.T) {
 
 func TestHandler(t *testing.T) {
 	srv := fakeNWS(t, 0, false)
-	oldNWS, oldForecast := nwsBase, forecastBase
-	nwsBase, forecastBase = srv.URL, srv.URL
-	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
+	oldNWS, oldForecast, oldSnotel := nwsBase, forecastBase, snotelBase
+	nwsBase, forecastBase, snotelBase = srv.URL, srv.URL, srv.URL+"/snotel"
+	t.Cleanup(func() { nwsBase, forecastBase, snotelBase = oldNWS, oldForecast, oldSnotel })
 
 	rec := httptest.NewRecorder()
 	Handler(rec, httptest.NewRequest("GET", "/?lat_lon=47.5962,-120.6615&name=Home", nil))
@@ -392,9 +396,9 @@ func TestMapClickRejectsDistantElevation(t *testing.T) {
 
 func TestServeMultipleLocations(t *testing.T) {
 	srv := fakeNWS(t, 0, false)
-	oldNWS, oldForecast := nwsBase, forecastBase
-	nwsBase, forecastBase = srv.URL, srv.URL
-	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
+	oldNWS, oldForecast, oldSnotel := nwsBase, forecastBase, snotelBase
+	nwsBase, forecastBase, snotelBase = srv.URL, srv.URL, srv.URL+"/snotel"
+	t.Cleanup(func() { nwsBase, forecastBase, snotelBase = oldNWS, oldForecast, oldSnotel })
 
 	status, body := Serve(context.Background(), url.Values{"locations": {"Leavenworth, WA | 47.5962,-120.6615\nUp the hill | 47.7448,-121.0890"}})
 	var resp struct {
@@ -582,9 +586,9 @@ func TestMergeObserved(t *testing.T) {
 
 func TestBuildGlanceWithStations(t *testing.T) {
 	srv := fakeNWS(t, 0, true)
-	oldNWS, oldForecast := nwsBase, forecastBase
-	nwsBase, forecastBase = srv.URL, srv.URL
-	t.Cleanup(func() { nwsBase, forecastBase = oldNWS, oldForecast })
+	oldNWS, oldForecast, oldSnotel := nwsBase, forecastBase, snotelBase
+	nwsBase, forecastBase, snotelBase = srv.URL, srv.URL, srv.URL+"/snotel"
+	t.Cleanup(func() { nwsBase, forecastBase, snotelBase = oldNWS, oldForecast, oldSnotel })
 
 	now := time.Date(2026, 10, 25, 14, 45, 0, 0, time.UTC) // 7:45 AM PDT
 	g, err := BuildGlance(context.Background(), newNWSClient(), Options{Lat: 47.5962, Lon: -120.6615, Units: "us", Days: 7}, now)
@@ -859,5 +863,63 @@ func TestBuildDaysOvernight(t *testing.T) {
 	days = buildDays(periods, nil, loc, 7)
 	if len(days) != 3 || days[0].Label != "Sun 8" || days[1].Label != "Mon 9" {
 		t.Errorf("tonight days = %+v", days)
+	}
+}
+
+// A week of real hourly SNOTEL data from Stevens Pass (Nov 4-10, 2026). Midnight to midnight it
+// measured 0.6″ on Nov 6 and 1.0″ on Nov 8 (the running total went 4.3″ to 5.3″).
+func TestParseSnotel(t *testing.T) {
+	b, err := os.ReadFile("testdata/snotel_stevens_week.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := snotelData{}
+	if err := json.Unmarshal(b, &d); err != nil {
+		t.Fatal(err)
+	}
+	tz := time.FixedZone("PST", -8*3600)
+	s := stationSeries{}
+	parseSnotel(d, tz, &s)
+	if len(s.Precip) < 100 || len(s.Times) < 100 || len(s.Depth) == 0 {
+		t.Fatalf("parsed %d precip, %d temps, %d depths", len(s.Precip), len(s.Times), len(s.Depth))
+	}
+	day := func(dd int) float64 {
+		from := time.Date(2026, 11, dd, 0, 0, 0, 0, tz)
+		total := 0.0
+		for _, r := range s.Precip {
+			if r.T.After(from) && !r.T.After(from.Add(24*time.Hour)) {
+				total += r.V
+			}
+		}
+		return math.Round(total*10) / 10
+	}
+	if day(6) != 0.6 || day(8) != 1.0 {
+		t.Errorf("Nov 6 = %.1f″, Nov 8 = %.1f″; want 0.6 and 1.0", day(6), day(8))
+	}
+	// A missing hour doesn't lose its rain: drop Nov 8's 1 AM reading (4.3″ -> 4.5″ at 1 AM).
+	for _, st := range d {
+		for i := range st.Data {
+			vals := st.Data[i].Values
+			for k := range vals {
+				if vals[k].Date == "2026-11-08 01:00" {
+					st.Data[i].Values = append(vals[:k:k], vals[k+1:]...)
+					break
+				}
+			}
+		}
+	}
+	s = stationSeries{}
+	parseSnotel(d, tz, &s)
+	if day(8) != 1.0 {
+		t.Errorf("Nov 8 with a missing hour = %.1f″", day(8))
+	}
+	// As a gauge it feeds the measured rain: Nov 6's afternoon block.
+	o := newObserved([]stationSeries{s}, math.NaN())
+	if o == nil || len(o.gauges) != 1 {
+		t.Fatalf("observed = %+v", o)
+	}
+	noon := time.Date(2026, 11, 6, 12, 0, 0, 0, tz)
+	if r := o.rain(noon, noon.Add(6*time.Hour)); r < 0.3 {
+		t.Errorf("Nov 6 noon-6 PM rain = %.2f", r)
 	}
 }
