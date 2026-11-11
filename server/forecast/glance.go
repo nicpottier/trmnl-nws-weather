@@ -13,22 +13,22 @@ import (
 
 // Glance is the compact payload TRMNL polls; everything the Liquid templates need, nothing more.
 type Glance struct {
-	Location    string  `json:"location"`
-	Unit        string  `json:"unit"`
-	Updated     string  `json:"updated"`
-	Today       string  `json:"today"`
-	Now         Now     `json:"now"`
-	Outlook     string  `json:"outlook"`
-	OutlookName string  `json:"outlook_name"`
-	Days        []Day   `json:"days"`
-	TodayIndex  int     `json:"today_index"` // days[today_index] is today; earlier days are measured
-	FreshSnow   string  `json:"fresh_snow"`
+	Location    string `json:"location"`
+	Unit        string `json:"unit"`
+	Updated     string `json:"updated"`
+	Today       string `json:"today"`
+	Now         Now    `json:"now"`
+	Outlook     string `json:"outlook"`
+	OutlookName string `json:"outlook_name"`
+	Days        []Day  `json:"days"`
+	TodayIndex  int    `json:"today_index"` // days[today_index] is today; earlier days are measured
+	FreshSnow   string `json:"fresh_snow"`
 	// Issues names the sources of past data that failed this time (e.g. "SNOTEL"), so the screen can
 	// say something is wrong instead of quietly showing less.
-	Issues []string `json:"issues"`  // measured new snow, e.g. "3″ 24h · 7″ 48h" or "7″ 48h", or ""
-	Alerts      []Alert `json:"alerts"`
-	Scale       Scale   `json:"scale"`
-	Chart       *Chart  `json:"chart,omitempty"`
+	Issues []string `json:"issues"` // measured new snow, e.g. "3″ 24h · 7″ 48h" or "7″ 48h", or ""
+	Alerts []Alert  `json:"alerts"`
+	Scale  Scale    `json:"scale"`
+	Chart  *Chart   `json:"chart,omitempty"`
 }
 
 type Now struct {

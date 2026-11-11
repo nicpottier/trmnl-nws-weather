@@ -23,28 +23,42 @@ func TestCWOPCall(t *testing.T) {
 }
 
 func TestRainFromSamples(t *testing.T) {
+	// A station whose "since midnight" total resets at UTC midnight: 4 PM in Leavenworth.
 	loc, _ := time.LoadLocation("America/Los_Angeles")
 	at := func(d, h, m int) int64 { return time.Date(2026, 11, d, h, m, 0, 0, loc).Unix() }
 	samples := []aprsSample{
-		{T: at(9, 22, 0), Mn: 2.0, R1: 0.5},
-		{T: at(9, 22, 30), Mn: 3.0, R1: 1.0}, // +1.0 mm
-		{T: at(9, 23, 30), Mn: 5.0, R1: 2.0}, // +2.0 mm
-		{T: at(10, 0, 20), Mn: 1.0, R1: 1.8}, // past midnight: 1.0 today + 0.8 of the last hour before it
-		{T: at(10, 6, 0), Mn: 4.0, R1: 0.0},  // 5h40m gap: unknown
-		{T: at(10, 6, 30), Mn: 5.27, R1: 1.27},
+		{T: at(10, 15, 0), Mn: 2.0, R1: 0.5, R24: 4.8},
+		{T: at(10, 15, 30), Mn: 3.0, R1: 1.0}, // +1.0 mm
+		{T: at(10, 16, 20), Mn: 0.4, R1: 1.2}, // its reset: 0.4 since, plus 0.8 of the last hour before
+		{T: at(10, 17, 0), Mn: 0.4},           // dry
+		{T: at(10, 22, 0), Mn: 2.4},           // a 5-hour gap: 2.0 mm, spread over it
+		{T: at(11, 6, 0), Mn: 0.2},            // a reset after an 8-hour gap: unknown
 	}
-	got := rainFromSamples(samples, loc)
-	want := []float64{1.0, 2.0, 1.8, 1.27}
-	if len(got) != len(want) {
-		t.Fatalf("got %d readings: %+v", len(got), got)
-	}
-	for i, r := range got {
-		if math.Abs(r.V-want[i]/25.4) > 0.001 {
-			t.Errorf("reading %d = %.3f″, want %.3f″", i, r.V, want[i]/25.4)
+	got := rainFromSamples(samples)
+	sum := func(from, to int64) float64 {
+		total := 0.0
+		for _, r := range got {
+			if r.T.Unix() > from && r.T.Unix() <= to {
+				total += r.V
+			}
 		}
+		return math.Round(total*25.4*100) / 100 // back to mm
 	}
-	if !got[3].T.Equal(time.Unix(at(10, 6, 30), 0)) {
-		t.Errorf("last reading at %v", got[3].T)
+	// Before the first report: its 24-hour total, spread over the day before it.
+	if mm := sum(at(9, 15, 0), at(10, 15, 0)); mm != 4.8 {
+		t.Errorf("backfill = %v mm, want 4.8", mm)
+	}
+	if mm := sum(at(10, 15, 0), at(10, 15, 30)); mm != 1.0 {
+		t.Errorf("15:00-15:30 = %v mm, want 1.0", mm)
+	}
+	if mm := sum(at(10, 15, 30), at(10, 16, 20)); mm != 1.2 {
+		t.Errorf("across the reset = %v mm, want 1.2", mm)
+	}
+	if mm := sum(at(10, 17, 0), at(10, 19, 0)); mm != 0.8 { // 2 of the gap's 5 hours
+		t.Errorf("17:00-19:00 = %v mm, want 0.8", mm)
+	}
+	if mm := sum(at(10, 22, 0), at(11, 6, 0)); mm != 0 {
+		t.Errorf("after the long gap = %v mm, want 0 (unknown)", mm)
 	}
 }
 
@@ -141,19 +155,27 @@ func TestAddCWOPRain(t *testing.T) {
 		}
 		return series
 	}
-	// The first run only saves a report: no rain yet, since rain is the change between reports.
-	if s := run(); len(s[1].Precip) != 0 {
-		t.Errorf("first run precip = %+v", s[1].Precip)
+	total := func(p []reading) float64 {
+		t := 0.0
+		for _, r := range p {
+			t += r.V
+		}
+		return math.Round(t*25.4*100) / 100
+	}
+	// The first run has only one report: its 24-hour total (10.2 mm) fills the day before it.
+	if s := run(); total(s[1].Precip) != 10.2 || len(s[1].Precip) != 24 {
+		t.Errorf("first run precip = %v mm in %d readings", total(s[1].Precip), len(s[1].Precip))
 	}
 	// Half an hour later EW5752 has 1.27 mm more and FW4618 none; C1234 has no gauge.
 	report = base.Add(30 * time.Minute)
 	mn["EW5752"] += 1.27
 	s := run()
-	if len(s[1].Precip) != 1 || math.Abs(s[1].Precip[0].V-0.05) > 0.001 || !s[1].Precip[0].T.Equal(report) {
-		t.Errorf("EW5752 precip = %+v", s[1].Precip)
+	last := s[1].Precip[len(s[1].Precip)-1]
+	if total(s[1].Precip) != 11.47 || math.Abs(last.V-0.05) > 0.001 || !last.T.Equal(report) {
+		t.Errorf("EW5752 precip = %v mm, last %+v", total(s[1].Precip), last)
 	}
-	if len(s[2].Precip) != 1 || s[2].Precip[0].V != 0 {
-		t.Errorf("FW4618 precip = %+v", s[2].Precip)
+	if total(s[2].Precip) != 10.2 || s[2].Precip[len(s[2].Precip)-1].V != 0 {
+		t.Errorf("FW4618 precip = %v mm", total(s[2].Precip))
 	}
 	if len(s[0].Precip) != 0 || len(s[3].Precip) != 0 {
 		t.Errorf("non-gauge stations got rain: %+v / %+v", s[0].Precip, s[3].Precip)

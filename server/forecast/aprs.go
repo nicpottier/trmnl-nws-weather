@@ -127,7 +127,7 @@ func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, loc
 					samples = append(samples, s)
 				}
 			}
-			series[index[call]].Precip = rainFromSamples(samples, loc)
+			series[index[call]].Precip = rainFromSamples(samples)
 			total := 0.0
 			for _, p := range series[index[call]].Precip {
 				total += p.V
@@ -152,30 +152,59 @@ func parseAPRS(t, mn, r1, r24 string) (aprsSample, bool) {
 	return aprsSample{T: ts, Mn: f(mn), R1: f(r1), R24: f(r24)}, true
 }
 
-// rainFromSamples turns saved reports into rain readings, in inches, each for the time since the
-// report before. Within a day that's the rise in the since-midnight total. Across midnight the total
-// restarts, so it's the new day's total plus, when the reports are an hour or less apart, whatever
-// of the last hour's rain fell before midnight. Gaps longer than aprsMaxGap are left unknown.
-func rainFromSamples(samples []aprsSample, loc *time.Location) []reading {
+// rainFromSamples turns saved reports into rain readings, in inches. Stations reset their
+// "since midnight" total at their own midnight (some local, some UTC), so a reset is spotted by the
+// total going down rather than by the clock.
+//
+//   - Between two reports in the same counting period, the rain is the rise in that total: at the
+//     later report when they're at most aprsMaxGap apart, spread evenly over the gap when it's longer
+//     (up to a day).
+//   - Across a reset, it's the new period's total, plus (when the reports are an hour or less apart)
+//     whatever of the last hour's rain fell before the reset.
+//   - Before the first saved report, its 24-hour total is spread evenly over the 24 hours before it,
+//     so the day the history starts (and a station that's just come back) isn't blank.
+func rainFromSamples(samples []aprsSample) []reading {
 	sort.Slice(samples, func(i, j int) bool { return samples[i].T < samples[j].T })
 	out := []reading{}
+	spread := func(mm float64, from, to time.Time) {
+		hours := int(math.Ceil(to.Sub(from).Hours()))
+		for h := hours - 1; h >= 0; h-- {
+			out = append(out, reading{to.Add(-time.Duration(h) * time.Hour), mm / float64(hours) / 25.4})
+		}
+	}
+	if len(samples) > 0 {
+		first := samples[0]
+		t := time.Unix(first.T, 0)
+		spread(first.R24, t.Add(-24*time.Hour), t)
+	}
 	for i := 1; i < len(samples); i++ {
 		a, b := samples[i-1], samples[i]
-		ta, tb := time.Unix(a.T, 0).In(loc), time.Unix(b.T, 0).In(loc)
+		ta, tb := time.Unix(a.T, 0), time.Unix(b.T, 0)
 		gap := tb.Sub(ta)
-		if gap <= 0 || gap > aprsMaxGap {
+		if gap <= 0 {
 			continue
 		}
-		mm := 0.0
-		if sameDay(ta, tb) {
-			mm = math.Max(0, b.Mn-a.Mn)
-		} else {
-			mm = b.Mn
+		if b.Mn < a.Mn-0.05 { // the station's total restarted
+			if gap > aprsMaxGap {
+				continue
+			}
+			mm := b.Mn
 			if gap <= time.Hour {
 				mm += math.Max(0, b.R1-b.Mn)
 			}
+			out = append(out, reading{tb, mm / 25.4})
+			continue
 		}
-		out = append(out, reading{tb, math.Round(mm/25.4*1000) / 1000})
+		mm := math.Max(0, b.Mn-a.Mn)
+		switch {
+		case gap <= aprsMaxGap:
+			out = append(out, reading{tb, mm / 25.4})
+		case gap <= 24*time.Hour:
+			spread(mm, ta, tb)
+		}
+	}
+	for i := range out {
+		out[i].V = math.Round(out[i].V*1e6) / 1e6
 	}
 	return out
 }
