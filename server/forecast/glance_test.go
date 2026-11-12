@@ -159,8 +159,8 @@ func TestBuildGlanceMorning(t *testing.T) {
 	if g.Location != "Leavenworth, WA" || g.Unit != "F" || g.Updated != "7:45 AM" {
 		t.Errorf("header = %q %q %q", g.Location, g.Unit, g.Updated)
 	}
-	// No station history at all is worth flagging on the screen.
-	if !reflect.DeepEqual(g.Issues, []string{"no station readings"}) {
+	// No station history at all is worth flagging on the screen, and so is the blank yesterday.
+	if !reflect.DeepEqual(g.Issues, []string{"no station readings", "yesterday"}) {
 		t.Errorf("issues = %v", g.Issues)
 	}
 	// Measured 35°F at LVN11 (via forecast.weather.gov), not the hourly forecast's 28°F.
@@ -171,10 +171,14 @@ func TestBuildGlanceMorning(t *testing.T) {
 	if g.Now.Short != "Partly Sunny" || g.Now.Icon != "sprinkles" || g.Now.Wind != "Calm" {
 		t.Errorf("now = %+v", g.Now)
 	}
-	if len(g.Days) != 7 {
-		t.Fatalf("got %d days, want 7", len(g.Days))
+	// The chart starts yesterday even without readings for it, so stacked locations line up.
+	if len(g.Days) != 7 || g.TodayIndex != 1 {
+		t.Fatalf("got %d days, today at %d; want 7 and 1", len(g.Days), g.TodayIndex)
 	}
-	first := g.Days[0]
+	if y := g.Days[0]; y.Label != "Sat 24" || !y.Missing {
+		t.Errorf("yesterday = %+v", y)
+	}
+	first := g.Days[1]
 	if first.Label != "Sun 25" || first.Hi != 55 || first.Lo != 34 {
 		t.Errorf("first day = %+v", first)
 	}
@@ -191,10 +195,10 @@ func TestBuildGlanceMorning(t *testing.T) {
 	if c == nil || c.BarKind != "auto" || len(c.Bars) != 28 || c.Days != 7 || c.TempPath == "" || c.FreezeY == nil {
 		t.Fatalf("chart = %+v", c)
 	}
-	if g.Days[1].Rain != "0.16″" || g.Days[0].Rain != "" || g.Days[1].Snow != "" || c.Label != "Rain 0.36″" {
-		t.Errorf("Monday rain/snow = %q/%q, label %q", g.Days[1].Rain, g.Days[1].Snow, c.Label)
+	if g.Days[2].Rain != "0.16″" || g.Days[1].Rain != "" || g.Days[2].Snow != "" || c.Label != "Rain 0.36″" {
+		t.Errorf("Monday rain/snow = %q/%q, label %q", g.Days[2].Rain, g.Days[2].Snow, c.Label)
 	}
-	if c.NowPct < 4 || c.NowPct > 5 { // 7:45 AM on day 1 of 7
+	if c.NowPct < 18 || c.NowPct > 19 { // 7:45 AM on day 2 of 7
 		t.Errorf("now_pct = %v", c.NowPct)
 	}
 	if len(g.Alerts) != 1 || g.Alerts[0].Event != "Winter Weather Advisory" {
@@ -207,7 +211,7 @@ func TestBuildGlanceEvening(t *testing.T) {
 	now := time.Date(2026, 10, 26, 1, 30, 0, 0, time.UTC) // 6:30 PM PDT
 	g := buildFromFixtures(t, 1, now)
 
-	first := g.Days[0]
+	first := g.Days[g.TodayIndex]
 	if first.Label != "Sun 25" || first.Lo != 34 || first.Hi < 34 {
 		t.Errorf("first day = %+v", first)
 	}
@@ -599,7 +603,8 @@ func TestBuildGlanceWithStations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(g.Issues) != 0 {
+	// LVN11's readings start at 1 AM today, so yesterday has none.
+	if !reflect.DeepEqual(g.Issues, []string{"yesterday"}) {
 		t.Errorf("issues = %v", g.Issues)
 	}
 	// TUM42 is closer but 3,000 ft higher, so LVN11's 7 AM reading (36°F) wins.
@@ -607,11 +612,12 @@ func TestBuildGlanceWithStations(t *testing.T) {
 		t.Errorf("now = %+v", g.Now)
 	}
 	// Today's 30-36°F readings pull the forecast's low (34°) down to 30°; the high (55°) stands.
-	if g.Days[0].Lo != 30 || g.Days[0].Hi != 55 {
-		t.Errorf("today lo/hi = %d/%d", g.Days[0].Lo, g.Days[0].Hi)
+	if today := g.Days[g.TodayIndex]; today.Lo != 30 || today.Hi != 55 {
+		t.Errorf("today lo/hi = %d/%d", today.Lo, today.Hi)
 	}
-	// The line now starts at 1:30 AM (the first full hour of readings) instead of the forecast's start.
-	if x := g.Chart.samples[0].x; math.Abs(x-1000*1.5/(24*7)) > 0.01 {
+	// The line now starts at 1:30 AM (the first full hour of readings) instead of the forecast's start,
+	// a day into the chart.
+	if x := g.Chart.samples[0].x; math.Abs(x-1000*(24+1.5)/(24*7)) > 0.01 {
 		t.Errorf("first sample x = %v", x)
 	}
 }

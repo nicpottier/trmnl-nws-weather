@@ -157,7 +157,7 @@
     {% endif %}
     <div class="wx__row">
       {% for day in loc.days limit: chart.days %}
-      <div class="wx__lohi"><span class="value value--xxsmall lg:value--xsmall">{{ day.lo }}°</span><span class="value value--xxsmall lg:value--xsmall font--bold">{{ day.hi }}°</span></div>
+      <div class="wx__lohi">{% if day.missing %}<span class="value value--xxsmall lg:value--xsmall">–</span>{% else %}<span class="value value--xxsmall lg:value--xsmall">{{ day.lo }}°</span><span class="value value--xxsmall lg:value--xsmall font--bold">{{ day.hi }}°</span>{% endif %}</div>
       {% endfor %}
     </div>
     <div class="wx__body">

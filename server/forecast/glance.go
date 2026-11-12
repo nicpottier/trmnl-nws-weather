@@ -61,6 +61,7 @@ type Day struct {
 	Snow      string   `json:"snow"`    // forecast snowfall for the day, e.g. "0.8″", or ""
 	Rain      string   `json:"rain"`    // forecast rain for the day, e.g. "0.13″", or ""
 	Amounts   []string `json:"amounts"` // the day's amounts in words, e.g. ["1.2″ snow", "Sprinkles"]
+	Missing   bool     `json:"missing"` // a past day without enough readings for its low and high
 	Gust      int      `json:"gust"`    // the day's peak gust (mph or km/h) when windy, else 0
 }
 
@@ -178,13 +179,24 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 
 	// With a day of station readings, the chart starts yesterday, drawn from what was measured,
 	// and shows one forecast day fewer.
+	// The chart always starts yesterday, so stacked locations line up under the one row of dates.
+	// Yesterday's low and high come from the station when it reported enough of the day; otherwise
+	// they show as missing, and the screen says so.
 	back := 0
 	days := []Day{}
 	midnight := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, loc)
-	if station != nil && opts.Days > 1 {
-		if d, ok := observedDay(station, midnight.AddDate(0, 0, -1), opts.Units); ok {
-			days, back = append(days, d), 1
+	if opts.Days > 1 {
+		yesterday := midnight.AddDate(0, 0, -1)
+		d, ok := Day{}, false
+		if station != nil {
+			d, ok = observedDay(station, yesterday, opts.Units)
 		}
+		if !ok {
+			d = Day{Dow: yesterday.Format("Mon"), Date: yesterday.Day(), Label: yesterday.Format("Mon 2"),
+				Name: "Yesterday", Shade: shades[0], Missing: true}
+			issues = append(issues, "yesterday")
+		}
+		days, back = append(days, d), 1
 	}
 	forecastDays := buildDays(periods, hourly, loc, opts.Days-back)
 	if len(forecastDays) == 0 {
@@ -210,11 +222,16 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	// One scale shared by every pill and the "now" marker.
 	lo, hi := nowTemp, nowTemp
 	for _, d := range days {
-		lo, hi = min(lo, d.Lo), max(hi, d.Hi)
+		if !d.Missing {
+			lo, hi = min(lo, d.Lo), max(hi, d.Hi)
+		}
 	}
 	span := float64(max(hi-lo, 1))
 	pct := func(t int) float64 { return math.Round(float64(hi-t)*1000/span) / 10 }
 	for i := range days {
+		if days[i].Missing {
+			continue
+		}
 		days[i].TopPct = pct(days[i].Hi)
 		days[i].HeightPct = math.Round(float64(days[i].Hi-days[i].Lo)*1000/span) / 10
 	}
@@ -329,9 +346,9 @@ func includeObserved(today *Day, s *stationSeries, localNow time.Time, units str
 	}
 }
 
-// minObservedDayHours is how many hours of a past day a station must have reported for the day to
-// be drawn from its readings. api.weather.gov's copy of LVN11 skips a few hours most days.
-const minObservedDayHours = 12
+// minObservedDayHours is how many hours of a past day a station must have reported for its low and
+// high to be shown. api.weather.gov's copy of LVN11 skips hours, sometimes most of a day.
+const minObservedDayHours = 8
 
 // observedDay builds a past day's entry from a station's readings, if they cover enough of it.
 func observedDay(s *stationSeries, from time.Time, units string) (Day, bool) {
