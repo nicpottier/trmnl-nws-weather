@@ -160,13 +160,17 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	if grid != nil && grid.Properties.Elevation.Value != nil {
 		pointElevM = *grid.Properties.Elevation.Value
 	}
-	station := pickStation(stations, pointElevM, now)
+	// The current temperature needs a fresh reading. The past (the line, yesterday, today's low and
+	// high so far) can come from a station that's running behind: api.weather.gov's copy of the
+	// Stevens Pass stations is often 2-3 hours late.
+	current := pickStation(stations, pointElevM, now, maxObservationAge)
+	station := pickStation(stations, pointElevM, now, now.Sub(since))
 	if station == nil && stationsErr == nil {
 		issues = append(issues, "no station readings")
 	}
 	obs, err := (*Observation)(nil), error(nil)
-	if station != nil {
-		obs = station.latest()
+	if current != nil {
+		obs = current.latest()
 	} else {
 		obs, err = nws.CurrentObservation(ctx, opts.Lat, opts.Lon, points, pointElevM, loc, now)
 	}
@@ -177,8 +181,6 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		}
 	}
 
-	// With a day of station readings, the chart starts yesterday, drawn from what was measured,
-	// and shows one forecast day fewer.
 	// The chart always starts yesterday, so stacked locations line up under the one row of dates.
 	// Yesterday's low and high come from the station when it reported enough of the day; otherwise
 	// they show as missing, and the screen says so.

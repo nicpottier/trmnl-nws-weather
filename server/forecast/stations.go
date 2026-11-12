@@ -177,12 +177,12 @@ func distanceKm(lat1, lon1, lat2, lon2 float64) float64 {
 	return 6371 * 2 * math.Asin(math.Sqrt(a))
 }
 
-// pickStation returns the nearest station whose elevation is within maxElevationGapM of the
-// point (when known) and that has reported within maxObservationAge, or nil.
-func pickStation(series []stationSeries, pointElevM float64, now time.Time) *stationSeries {
+// pickStation returns the nearest station whose elevation is within maxElevationGapM of the point
+// (when known) and whose latest reading is at most maxAge old, or nil.
+func pickStation(series []stationSeries, pointElevM float64, now time.Time, maxAge time.Duration) *stationSeries {
 	for i := range series {
 		s := &series[i]
-		if len(s.Times) == 0 || now.Sub(s.Times[len(s.Times)-1]) > maxObservationAge || !s.nearElevation(pointElevM) {
+		if len(s.Times) == 0 || now.Sub(s.Times[len(s.Times)-1]) > maxAge || !s.nearElevation(pointElevM) {
 			continue
 		}
 		return s

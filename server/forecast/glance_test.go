@@ -546,15 +546,20 @@ func TestPickStation(t *testing.T) {
 		{ID: "LOW", ElevationFt: 2028, Times: fresh, TempF: []float64{45}},
 		{ID: "STS40", ElevationFt: 3950, Times: fresh, TempF: []float64{35}},
 	}
-	// Stevens Pass's grid point is ~1487 m (4880 ft): skip the stale and the far-lower stations.
-	if s := pickStation(series, 1487, now); s == nil || s.ID != "STS40" {
+	// Stevens Pass's grid point is ~1487 m (4880 ft): for the current temperature, skip the stale and
+	// the far-lower stations.
+	if s := pickStation(series, 1487, now, maxObservationAge); s == nil || s.ID != "STS40" {
 		t.Errorf("picked %+v", s)
 	}
-	if s := pickStation(series[:2], 1487, now); s != nil {
+	if s := pickStation(series[:2], 1487, now, maxObservationAge); s != nil {
 		t.Errorf("expected none, picked %s", s.ID)
 	}
+	// For the past, a station running 3 hours behind is fine.
+	if s := pickStation(series, 1487, now, 48*time.Hour); s == nil || s.ID != "STALE" {
+		t.Errorf("picked %+v", s)
+	}
 	// Unknown point elevation: the nearest fresh station.
-	if s := pickStation(series, math.NaN(), now); s == nil || s.ID != "LOW" {
+	if s := pickStation(series, math.NaN(), now, maxObservationAge); s == nil || s.ID != "LOW" {
 		t.Errorf("picked %+v", s)
 	}
 }
