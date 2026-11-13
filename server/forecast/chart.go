@@ -324,13 +324,13 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 		}
 	}
 
-	// Storms: runs of wet blocks, each labeled with its totals.
+	// Storms: runs of wet blocks, each labeled with its totals. A single dry block between two runs
+	// is a lull, not the end of a storm; and storms whose labels would collide are combined.
 	minSnow, minRain := stormMinSnowIn, stormMinRainIn
 	if units == "si" {
 		minSnow, minRain = stormMinSnowCm, stormMinRainMm
 	}
-	c.Storms = []Storm{}
-	for _, r := range runs(len(buckets), func(k int) bool { return buckets[k].snow >= minSnow || buckets[k].rain >= minRain }) {
+	label := func(r [2]int) (Storm, bool) {
 		sn, rn := 0.0, 0.0
 		for _, b := range buckets[r[0] : r[1]+1] {
 			sn, rn = sn+b.snow, rn+b.rain
@@ -342,7 +342,27 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 		if roundAmount(rn, "rain", units) >= sprinkles {
 			s.Labels = append(s.Labels, formatAmount(rn, "rain", units))
 		}
-		if len(s.Labels) > 0 {
+		return s, len(s.Labels) > 0
+	}
+	spans := joinRuns(runs(len(buckets), func(k int) bool { return buckets[k].snow >= minSnow || buckets[k].rain >= minRain }), stormMaxLull)
+	labeled := [][2]int{}
+	for _, r := range spans {
+		if _, ok := label(r); !ok {
+			continue
+		}
+		if n := len(labeled); n > 0 {
+			prev, _ := label(labeled[n-1])
+			cur, _ := label(r)
+			if cur.X-prev.X < minStormLabelGap {
+				labeled[n-1][1] = r[1] // too close to label apart: one storm
+				continue
+			}
+		}
+		labeled = append(labeled, r)
+	}
+	c.Storms = []Storm{}
+	for _, r := range labeled {
+		if s, ok := label(r); ok {
 			c.Storms = append(c.Storms, s)
 		}
 	}

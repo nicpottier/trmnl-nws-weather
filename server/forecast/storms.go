@@ -16,6 +16,27 @@ const (
 	stormMinRainMm, stormMinSnowCm = 0.5, 0.5
 )
 
+// stormMaxLull is how many dry blocks in a row can sit inside one storm; minStormLabelGap is how
+// close (in % of the chart's width) two storms' labels can be before the storms are combined. A
+// label is about 7% wide on a TRMNL X.
+const (
+	stormMaxLull     = 1
+	minStormLabelGap = 10.0
+)
+
+// joinRuns merges runs separated by at most maxGap indexes.
+func joinRuns(runs [][2]int, maxGap int) [][2]int {
+	out := [][2]int{}
+	for _, r := range runs {
+		if n := len(out); n > 0 && r[0]-out[n-1][1]-1 <= maxGap {
+			out[n-1][1] = r[1]
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 // runs returns the [first, last] index of each run of consecutive blocks for which in is true.
 func runs(n int, in func(int) bool) [][2]int {
 	out := [][2]int{}

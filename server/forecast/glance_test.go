@@ -833,27 +833,34 @@ func TestWind(t *testing.T) {
 
 func TestStorms(t *testing.T) {
 	loc, _ := time.LoadLocation("America/Los_Angeles")
-	now := time.Date(2026, 11, 2, 0, 0, 0, 0, loc)
-	grid := GridData{}
-	add := func(series *GridSeries, h int, v float64) {
-		series.Values = append(series.Values, struct {
-			ValidTime string   `json:"validTime"`
-			Value     *float64 `json:"value"`
-		}{time.Date(2026, 11, 2, h, 0, 0, 0, loc).Format(time.RFC3339) + "/PT6H", &v})
+	start := time.Date(2026, 11, 2, 0, 0, 0, 0, loc)
+	build := func(ndays int, rain map[int]float64) []Storm {
+		grid := GridData{}
+		for k, in := range rain { // block -> inches
+			mm := in * 25.4
+			grid.Properties.QuantitativePrecipitation.Values = append(grid.Properties.QuantitativePrecipitation.Values, struct {
+				ValidTime string   `json:"validTime"`
+				Value     *float64 `json:"value"`
+			}{start.Add(time.Duration(k*6)*time.Hour).Format(time.RFC3339) + "/PT6H", &mm})
+		}
+		return buildChart(&grid, make([]Day, ndays), loc, start, "us", "auto", nil, nil, 0).Storms
 	}
-	q := &grid.Properties.QuantitativePrecipitation
-	add(q, 0, 0.2)   // 0.008″: too light to count
-	add(q, 6, 2.54)  // 0.10″ \ one storm, blocks 1-2 (6 AM-6 PM), centered at 25%: 0.30″
-	add(q, 12, 5.08) // 0.20″ /
-	add(q, 18, 0.25) // 0.01″: a break
-	add(q, 24, 1.0)  // 0.04″: a storm too light to label
-	add(q, 36, 7.62) // 0.30″ and snow: 3″
-	add(&grid.Properties.SnowfallAmount, 36, 76.2)
-	days := make([]Day, 2)
-	c := buildChart(&grid, days, loc, now, "us", "auto", nil, nil, 0)
-	want := []Storm{{X: 25, Labels: []string{"0.30″"}}, {X: 81.3, Labels: []string{"3.0″"}}}
-	if !reflect.DeepEqual(c.Storms, want) {
-		t.Errorf("storms = %+v", c.Storms)
+	// One dry block is a lull inside a storm; two end it. Blocks under 0.02″ count as dry.
+	got := build(3, map[int]float64{0: 0.10, 1: 0.01, 2: 0.20, 5: 0.15})
+	want := []Storm{{X: 12.5, Labels: []string{"0.31″"}}, {X: 45.8, Labels: []string{"0.15″"}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("storms = %+v, want %+v", got, want)
+	}
+	// A light storm on its own isn't labeled.
+	if got := build(3, map[int]float64{0: 0.04}); len(got) != 0 {
+		t.Errorf("light storm = %+v", got)
+	}
+	// On a longer chart, storms three blocks apart would print their labels on top of each other,
+	// so they're combined: blocks 10 and 13 of 40, 7.5% apart.
+	got = build(10, map[int]float64{10: 0.20, 13: 0.30})
+	want = []Storm{{X: 30, Labels: []string{"0.50″"}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("close storms = %+v, want %+v", got, want)
 	}
 }
 
