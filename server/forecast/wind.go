@@ -83,7 +83,9 @@ func smoothPath(xs, ys []float64) string {
 	t := make([]float64, m) // tangents (Fritsch-Carlson); flat at peaks and at the ends
 	for i := 1; i < m-1; i++ {
 		if d[i-1]*d[i] > 0 {
-			t[i] = 3 * (xs[i+1] - xs[i-1]) / ((2*xs[i+1]-xs[i]-xs[i-1])/d[i-1] + (xs[i+1]-2*xs[i]+xs[i-1])/d[i])
+			// Fritsch-Butland: a weighted harmonic mean of the slopes on either side.
+			h0, h1 := xs[i]-xs[i-1], xs[i+1]-xs[i]
+			t[i] = 3 * (h0 + h1) / ((2*h1+h0)/d[i-1] + (h1+2*h0)/d[i])
 		}
 	}
 	f := func(v float64) string { return strconv.FormatFloat(math.Round(v*10)/10, 'f', -1, 64) }

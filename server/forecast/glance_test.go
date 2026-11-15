@@ -1005,8 +1005,13 @@ func TestFillSky(t *testing.T) {
 		t.Errorf("sky path = %.60s… edge %.40s…", c.SkyPath, c.SkyEdge)
 	}
 	// The 7-hour average eases the change: the point for 1-2 AM (10 PM-5 AM: 2 overcast hours, 5
-	// clear) is in between.
-	if !strings.Contains(c.SkyEdge, " 531.3,35.7") {
+	// clear) averages 35.7%, which hangs (35.7-25)/75 = 14.3% deep.
+	if !strings.Contains(c.SkyEdge, " 531.3,14.3") {
+		t.Errorf("edge = %s", c.SkyEdge)
+	}
+	// Under 25% is clear: the shape ends at the first clear point, with nothing drawn after it,
+	// and the curve stays inside the band.
+	if !strings.HasSuffix(c.SkyEdge, " 593.8,0") || strings.Contains(c.SkyEdge, "-") {
 		t.Errorf("edge = %s", c.SkyEdge)
 	}
 	// Before the forecast starts there's no sky at all.
@@ -1020,5 +1025,13 @@ func TestFillSky(t *testing.T) {
 	c.fillSky(&GridData{}, start, start.AddDate(0, 0, 2), start)
 	if c.SkyPath != "" || c.SkyEdge != "" {
 		t.Errorf("empty sky = %q / %q", c.SkyPath, c.SkyEdge)
+	}
+}
+
+func TestCloudDepth(t *testing.T) {
+	for cover, want := range map[float64]float64{0: 0, 24.9: 0, 25: 0, 40: 20, 62.5: 50, 100: 100} {
+		if got := cloudDepth(cover); got != want {
+			t.Errorf("cloudDepth(%v) = %v, want %v", cover, got, want)
+		}
 	}
 }

@@ -16,7 +16,8 @@ const (
 )
 
 // fillSky draws the forecast's cloud cover in the chart's top band, as a shape hanging from the top
-// as deep as the sky is covered: SkyPath is the filled shape, SkyEdge its lower edge. It starts at
+// as deep as the sky is covered beyond clear (see cloudDepth): SkyPath is the filled shape, SkyEdge
+// its lower edge. It starts at
 // now: none of the stations report clouds, so the past has none.
 func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	ivs := grid.Properties.SkyCover.intervals()
@@ -55,13 +56,40 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 		if i == first {
 			x = math.Max(xOf(now), xOf(hours[i]))
 		}
-		xs, ys = append(xs, x), append(ys, sum/float64(n))
+		xs, ys = append(xs, x), append(ys, cloudDepth(sum/float64(n)))
 	}
-	if len(xs) < 2 {
-		return
+
+	// One shape per cloudy stretch, each easing in from and out to the clear points beside it, so
+	// clear sky is left empty (no edge drawn along the top).
+	c.SkyEdge, c.SkyPath = "", ""
+	for i := 0; i < len(xs); i++ {
+		if ys[i] == 0 {
+			continue
+		}
+		from, to := max(i-1, 0), i
+		for to+1 < len(xs) && ys[to+1] > 0 {
+			to++
+		}
+		to = min(to+1, len(xs)-1)
+		if to > from {
+			edge := smoothPath(xs[from:to+1], ys[from:to+1])
+			c.SkyEdge += edge
+			c.SkyPath += "M" + fmtX(xs[from]) + ",0L" + strings.TrimPrefix(edge, "M") + "L" + fmtX(xs[to]) + ",0Z"
+		}
+		i = to
 	}
-	c.SkyEdge = smoothPath(xs, ys)
-	c.SkyPath = "M" + fmtX(xs[0]) + ",0L" + strings.TrimPrefix(c.SkyEdge, "M") + "L" + fmtX(xs[len(xs)-1]) + ",0Z"
+}
+
+// clearSkyCover is the cloud cover (%) below which the sky counts as clear and nothing is drawn.
+const clearSkyCover = 25.0
+
+// cloudDepth maps cloud cover to how far the shape hangs into the band (0-100): nothing when clear,
+// then in proportion from clearSkyCover to overcast, so it grows from nothing rather than jumping.
+func cloudDepth(cover float64) float64 {
+	if cover < clearSkyCover {
+		return 0
+	}
+	return math.Round((cover-clearSkyCover)/(100-clearSkyCover)*1000) / 10
 }
 
 func fmtX(v float64) string { return strconv.FormatFloat(math.Round(v*10)/10, 'f', -1, 64) }
