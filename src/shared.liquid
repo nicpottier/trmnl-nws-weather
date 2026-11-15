@@ -51,6 +51,10 @@
   /* The top quarter is the sky: cloud cover hangs from the top as deep as the sky is covered, and each
      windy spell is a dotted curve through it, with its peak gust in the dip. */
   .wx__wind { position: absolute; top: 0; left: 0; width: 100%; height: 25%; z-index: 1; overflow: visible; }
+  /* Over a long clear, sunny stretch, a sun peeks down from the top edge. */
+  .wx__sun { position: absolute; top: 0; z-index: 1; width: 40px; transform: translateX(-50%); }
+  .screen--lg .wx__sun { width: 72px; }
+  .wx__sun svg { display: block; width: 100%; height: auto; overflow: visible; }
   .wx__gust { position: absolute; top: 6px; z-index: 2; transform: translateX(-50%); white-space: nowrap; }
   .wx__gust .label { font-style: italic; gap: 3px; }
   .wx__gust svg { width: 1em; height: 1em; }
@@ -178,8 +182,8 @@
         {% if chart.sky_path != "" %}<svg class="wx__wind" viewBox="0 0 1000 100" preserveAspectRatio="none"><path d="{{ chart.sky_path }}" fill="#dddddd"/><path d="{{ chart.sky_edge }}" fill="none" stroke="#999999" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>{% endif %}
         {% if chart.wind_line != "" %}
         <svg class="wx__wind" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
-        <div class="wx__wind">{% for gust in chart.gusts %}<div class="wx__gust" style="left: {{ gust.x }}%;"><span class="label label--small lg:label--large">{{ gust.labels.first }}{% render "wx_icon", name: "wind", size: 14 %}</span></div>{% endfor %}</div>
         {% endif %}
+        <div class="wx__wind">{% for mark in chart.marks %}<div class="wx__{{ mark.kind }}" style="left: {{ mark.x }}%;">{% if mark.kind == "sun" %}<svg viewBox="0 -1 40 19" fill="#fff" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 0A8 8 0 0 0 28 0"/><path d="M30.6 2.8L35.9 4.3M28.4 7.1L32.6 10.6M24.6 10.0L27.0 15.0M20.0 11.0L20.0 16.5M15.4 10.0L13.0 15.0M11.6 7.1L7.4 10.6M9.4 2.8L4.1 4.3"/></svg>{% else %}<span class="label label--small lg:label--large">{{ mark.label }}{% render "wx_icon", name: "wind", size: 14 %}</span>{% endif %}</div>{% endfor %}</div>
         <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
         </div>

@@ -115,29 +115,34 @@ func minTime(a, b time.Time) time.Time {
 // Chart is drawn in two layers: an SVG temperature line in a 1000x100 viewBox stretched over the
 // chart area, and HTML bars (so the Framework can dither their shading on 1-bit screens).
 type Chart struct {
-	TempPath  string   `json:"temp_path"`    // SVG path, viewBox 0 0 1000 100
-	FreezeY   *float64 `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
-	NowX      float64  `json:"now_x"`        // x of the current time, 0-1000
-	NowPct    float64  `json:"now_pct"`      // the same, as a percentage
-	NowY      *float64 `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
-	TempMax   int      `json:"temp_max"`     // temperature at the top of the chart
-	TempMin   int      `json:"temp_min"`     // temperature at the bottom
-	BarKind   string   `json:"bar_kind"`     // "auto", "snow" or "precip"
-	Bars      []Bar    `json:"bars"`         // one per 6 hours
-	Storms    []Storm  `json:"storms"`       // snow/rain totals per storm, centered under it
-	Gusts     []Storm  `json:"gusts"`        // peak gust per windy spell, centered under it
-	SkyPath   string   `json:"sky_path"`     // cloud cover hanging from the top, viewBox 0 0 1000 100 over the top band
-	SkyEdge   string   `json:"sky_edge"`     // the same shape's lower edge, as a line
-	WindLine  string   `json:"wind_line"`    // gusts as a curve hanging from the top: SVG path, viewBox 0 0 1000 100 over the wind band
-	HasAmount bool     `json:"has_amount"`   // any snow/rain at all in the window
-	Days      int      `json:"days"`         // columns in the chart
-	Snow      float64  `json:"snow_total"`   // total snowfall over the window, display units
-	Rain      float64  `json:"rain_total"`   // total rain (or all precip, in "precip" mode)
-	Label     string   `json:"label"`        // e.g. "Snow 1.8″ · Rain 0.25″"
-	Freeze    string   `json:"freeze_label"` // "32°" or "0°"
+	TempPath  string    `json:"temp_path"`    // SVG path, viewBox 0 0 1000 100
+	FreezeY   *float64  `json:"freeze_y"`     // y of 32°F / 0°C in the viewBox, if in range
+	NowX      float64   `json:"now_x"`        // x of the current time, 0-1000
+	NowPct    float64   `json:"now_pct"`      // the same, as a percentage
+	NowY      *float64  `json:"now_y"`        // y of the temperature line at now_x (0-100), if known
+	TempMax   int       `json:"temp_max"`     // temperature at the top of the chart
+	TempMin   int       `json:"temp_min"`     // temperature at the bottom
+	BarKind   string    `json:"bar_kind"`     // "auto", "snow" or "precip"
+	Bars      []Bar     `json:"bars"`         // one per 6 hours
+	Storms    []Storm   `json:"storms"`       // snow/rain totals per storm, centered under it
+	Gusts     []Storm   `json:"gusts"`        // peak gust per windy spell, centered under it
+	SkyPath   string    `json:"sky_path"`     // cloud cover hanging from the top, viewBox 0 0 1000 100 over the top band
+	Marks     []Mark    `json:"marks"`        // suns and gust labels for the top band, left to right
+	Suns      []float64 `json:"suns"`         // where a sun peeks out over a clear, sunny stretch: x, 0-100 %
+	SkyEdge   string    `json:"sky_edge"`     // the same shape's lower edge, as a line
+	WindLine  string    `json:"wind_line"`    // gusts as a curve hanging from the top: SVG path, viewBox 0 0 1000 100 over the wind band
+	HasAmount bool      `json:"has_amount"`   // any snow/rain at all in the window
+	Days      int       `json:"days"`         // columns in the chart
+	Snow      float64   `json:"snow_total"`   // total snowfall over the window, display units
+	Rain      float64   `json:"rain_total"`   // total rain (or all precip, in "precip" mode)
+	Label     string    `json:"label"`        // e.g. "Snow 1.8″ · Rain 0.25″"
+	Freeze    string    `json:"freeze_label"` // "32°" or "0°"
 
-	samples []sample // hourly temperatures in display units, kept so the scale can be changed
-	freeze  float64  // 32 or 0, in display units
+	samples  []sample  // hourly temperatures in display units, kept so the scale can be changed
+	skyHours []skyHour // smoothed cloud cover per hour from now on (see fillSky)
+	start    time.Time // the chart's first hour
+	end      time.Time // and the end of its last
+	freeze   float64   // 32 or 0, in display units
 
 	// Snow and rain still forecast for the rest of today (the current 6-hour block included),
 	// and the amounts below which they count as flurries / sprinkles, all in display units.
@@ -165,7 +170,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 	span := float64(end.Sub(start))
 	xOf := func(t time.Time) float64 { return float64(t.Sub(start)) / span * 1000 }
 
-	c := &Chart{Days: n, Freeze: "32°"}
+	c := &Chart{Days: n, Freeze: "32°", start: start, end: end}
 	c.NowX = math.Round(xOf(now)*10) / 10
 	c.NowPct = c.NowX / 10
 

@@ -1035,3 +1035,43 @@ func TestCloudDepth(t *testing.T) {
 		}
 	}
 }
+
+func TestSunElevation(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	at := func(h, m int) float64 {
+		return sunElevation(47.5962, -120.6615, time.Date(2026, 11, 15, h, m, 0, 0, loc))
+	}
+	// Leavenworth in mid-November: up around 7:00 AM, down around 4:20 PM, about 23° at midday.
+	if at(6, 30) > 0 || at(7, 30) < 0 || at(16, 0) < 0 || at(17, 0) > 0 || math.Abs(at(11, 50)-23) > 2 {
+		t.Errorf("elevations: 6:30 %.1f, 7:30 %.1f, 11:50 %.1f, 4:00 %.1f, 5:00 %.1f", at(6, 30), at(7, 30), at(11, 50), at(16, 0), at(17, 0))
+	}
+}
+
+func TestPlaceSuns(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	start := time.Date(2026, 11, 15, 0, 0, 0, 0, loc)
+	c := &Chart{start: start, end: start.AddDate(0, 0, 2)}
+	// Day 1: clear all night, cloudy all day. Day 2: clear 9 AM-1 PM (4 sunny hours), then cloudy.
+	for h := 0; h < 48; h++ {
+		cover := 90.0
+		if h < 7 || (h >= 33 && h < 37) {
+			cover = 10
+		}
+		c.skyHours = append(c.skyHours, skyHour{start.Add(time.Duration(h) * time.Hour), cover})
+	}
+	c.placeSuns(47.5962, -120.6615, loc)
+	// One sun, over day 2's 9 AM-1 PM, centered at 11 AM: hour 35 of 48.
+	if !reflect.DeepEqual(c.Suns, []float64{72.9}) {
+		t.Errorf("suns = %v", c.Suns)
+	}
+	// Two clear hours aren't enough.
+	for i := range c.skyHours {
+		if h := i; h == 35 || h == 36 {
+			c.skyHours[i].cover = 90
+		}
+	}
+	c.placeSuns(47.5962, -120.6615, loc)
+	if len(c.Suns) != 0 {
+		t.Errorf("suns after clouding over = %v", c.Suns)
+	}
+}

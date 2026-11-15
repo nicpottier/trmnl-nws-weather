@@ -244,6 +244,8 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		if source != "forecast" {
 			chart.anchorNow(float64(nowTemp))
 		}
+		chart.placeSuns(opts.Lat, opts.Lon, loc)
+		chart.setMarks()
 		nowIcon = currentIcon(nowIcon, hour.ShortForecast, chart, nowTemp, opts.Units)
 	}
 

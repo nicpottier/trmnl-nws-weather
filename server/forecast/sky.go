@@ -45,18 +45,25 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	for first < len(hours) && hours[first].Add(time.Hour).Before(now) {
 		first++
 	}
-	for i := first; i < len(hours); i += skyStepHours {
+	smoothed := func(h time.Time) float64 {
 		sum, n := 0.0, 0
 		for d := -skySmoothHours / 2; d <= skySmoothHours/2; d++ {
-			if v, ok := cover[hours[i].Add(time.Duration(d)*time.Hour)]; ok {
+			if v, ok := cover[h.Add(time.Duration(d)*time.Hour)]; ok {
 				sum, n = sum+v, n+1
 			}
 		}
+		return sum / float64(n)
+	}
+	c.skyHours = nil
+	for _, h := range hours[first:] {
+		c.skyHours = append(c.skyHours, skyHour{h, smoothed(h)})
+	}
+	for i := first; i < len(hours); i += skyStepHours {
 		x := xOf(hours[i].Add(30 * time.Minute))
 		if i == first {
 			x = math.Max(xOf(now), xOf(hours[i]))
 		}
-		xs, ys = append(xs, x), append(ys, cloudDepth(sum/float64(n)))
+		xs, ys = append(xs, x), append(ys, cloudDepth(smoothed(hours[i])))
 	}
 
 	// One shape per cloudy stretch, each easing in from and out to the clear points beside it, so
