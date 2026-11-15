@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -422,8 +423,8 @@ func TestServeMultipleLocations(t *testing.T) {
 }
 
 func TestShareScale(t *testing.T) {
-	valley := &Chart{samples: []sample{{0, 30}, {500, 56}}, freeze: 32, NowX: 250}
-	pass := &Chart{samples: []sample{{0, 22}, {500, 41}}, freeze: 32}
+	valley := &Chart{samples: []sample{{x: 0, t: 30}, {x: 500, t: 56}}, freeze: 32, NowX: 250}
+	pass := &Chart{samples: []sample{{x: 0, t: 22}, {x: 500, t: 41}}, freeze: 32}
 	ShareScale([]*Chart{valley, nil, pass})
 
 	for _, c := range []*Chart{valley, pass} {
@@ -946,5 +947,41 @@ func TestParseSnotel(t *testing.T) {
 	noon := time.Date(2026, 11, 6, 12, 0, 0, 0, tz)
 	if r := o.rain(noon, noon.Add(6*time.Hour)); r < 0.3 {
 		t.Errorf("Nov 6 noon-6 PM rain = %.2f", r)
+	}
+}
+
+// Leavenworth at 8 AM on Nov 15: LVN11 read 45°F, but the forecast had 38°F for this hour, so the line
+// dropped 7° to a dot on the forecast. The dot now sits on the reading, and the forecast is shifted
+// to meet it, fading back to its own values over six hours.
+func TestAnchorNow(t *testing.T) {
+	c := &Chart{Days: 1, NowX: 1000 * 8 / 24.0, freeze: 32}
+	xOf := func(h float64) float64 { return 1000 * h / 24 }
+	c.samples = []sample{{x: xOf(6.5), t: 45}, {x: xOf(7), t: 45}} // readings
+	for h := 8; h < 24; h++ {
+		c.samples = append(c.samples, sample{x: xOf(float64(h)), t: 38, forecast: true})
+	}
+	// A forecast point a hair before now, as rounding can leave one, mustn't poke out of the line.
+	c.samples = append(c.samples, sample{x: c.NowX - 0.02, t: 38, forecast: true})
+	sort.Slice(c.samples, func(i, j int) bool { return c.samples[i].x < c.samples[j].x })
+	c.anchorNow(45)
+	for _, s := range c.samples {
+		if s.x < c.NowX && s.x > c.NowX-1 {
+			t.Errorf("stray point before now: %+v", s)
+		}
+	}
+	at := func(h float64) float64 {
+		for _, s := range c.samples {
+			if math.Abs(s.x-xOf(h)) < 0.01 {
+				return s.t
+			}
+		}
+		return math.NaN()
+	}
+	if at(8) != 45 || math.Abs(at(11)-41.5) > 0.01 || at(14) != 38 || at(20) != 38 {
+		t.Errorf("8 AM %.1f, 11 AM %.1f, 2 PM %.1f, 8 PM %.1f; want 45, 41.5, 38, 38", at(8), at(11), at(14), at(20))
+	}
+	// The dot is on the reading: 45°F on the chart's scale.
+	if c.NowY == nil || math.Abs(*c.NowY-(1-(45-float64(c.TempMin))/float64(c.TempMax-c.TempMin))*100) > 0.1 {
+		t.Errorf("now_y = %v on %d..%d", c.NowY, c.TempMin, c.TempMax)
 	}
 }

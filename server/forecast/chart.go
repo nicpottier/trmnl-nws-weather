@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -142,7 +143,8 @@ type Chart struct {
 }
 
 type sample struct {
-	x, t float64 // x in the 0-1000 viewBox, temperature in display units
+	x, t     float64 // x in the 0-1000 viewBox, temperature in display units
+	forecast bool    // from the NWS forecast rather than a station reading
 }
 
 const barHours = 6
@@ -174,7 +176,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 			if units != "si" {
 				temp = temp*9/5 + 32
 			}
-			c.samples = append(c.samples, sample{xOf(t), temp})
+			c.samples = append(c.samples, sample{xOf(t), temp, true})
 		}
 	}
 	c.mergeObserved(obs, start, now, xOf, units)
@@ -407,12 +409,12 @@ func (c *Chart) mergeObserved(obs *stationSeries, start, now time.Time, xOf func
 	for t := start; t.Before(now); t = t.Add(time.Hour) {
 		mid := t.Add(30 * time.Minute)
 		if v, ok := hours[t.Unix()]; ok && mid.Before(now) {
-			past = append(past, sample{xOf(mid), toUnits(v)})
+			past = append(past, sample{x: xOf(mid), t: toUnits(v)})
 		}
 	}
 	last := obs.latest()
 	if !last.ObservedAt.Before(start) {
-		past = append(past, sample{xOf(last.ObservedAt), toUnits(last.TempF)})
+		past = append(past, sample{x: xOf(last.ObservedAt), t: toUnits(last.TempF)})
 	}
 	if len(past) == 0 {
 		return
@@ -424,6 +426,64 @@ func (c *Chart) mergeObserved(obs *stationSeries, start, now time.Time, xOf func
 		}
 	}
 	c.samples = past
+}
+
+// nowFadeHours is how long the forecast takes to return to its own values after being shifted to
+// meet the current temperature (see anchorNow).
+const nowFadeHours = 6.0
+
+// anchorNow puts the current, measured temperature (display units) on the line at the current time,
+// so the dot shows what's measured rather than what was forecast for this hour. The forecast after
+// it is shifted by its error now, fading out over nowFadeHours, so the line runs from the readings
+// through the dot and eases into the forecast instead of jumping to it.
+func (c *Chart) anchorNow(temp float64) {
+	if c.Days == 0 {
+		return
+	}
+	xPerHour := 1000 / float64(c.Days*24)
+	// The forecast's own value now, from the forecast samples around it.
+	var before, after *sample
+	for i := range c.samples {
+		s := &c.samples[i]
+		if !s.forecast {
+			continue
+		}
+		if s.x <= c.NowX {
+			before = s
+		} else if after == nil {
+			after = s
+		}
+	}
+	predicted := math.NaN()
+	switch {
+	case before != nil && after != nil:
+		predicted = before.t + (after.t-before.t)*(c.NowX-before.x)/(after.x-before.x)
+	case after != nil:
+		predicted = after.t
+	case before != nil:
+		predicted = before.t
+	}
+	kept := []sample{}
+	for _, s := range c.samples {
+		// A forecast point just before now (even by a rounding error) is superseded by the reading.
+		if s.forecast && s.x < c.NowX && s.x > c.NowX-xPerHour {
+			continue
+		}
+		if s.forecast && !math.IsNaN(predicted) {
+			if h := (s.x - c.NowX) / xPerHour; h >= 0 && h < nowFadeHours {
+				s.t += (temp - predicted) * (1 - h/nowFadeHours)
+			}
+		}
+		if s.x != c.NowX {
+			kept = append(kept, s)
+		}
+	}
+	kept = append(kept, sample{x: c.NowX, t: temp})
+	sort.SliceStable(kept, func(i, j int) bool { return kept[i].x < kept[j].x })
+	c.samples = kept
+	if lo, hi, ok := c.tempRange(); ok {
+		c.setScale(lo, hi)
+	}
 }
 
 // tempRange returns the chart's temperature extremes, rounded out to a multiple of 5 so the
