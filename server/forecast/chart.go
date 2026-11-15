@@ -193,7 +193,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 
 	c.fillBars(grid, days, start, end, today, now, units, barMode, seen)
 	c.fillWind(grid, days, start, end, now, units, seen)
-	c.fillSky(grid, start, end)
+	c.fillSky(grid, start, end, now)
 	return c
 }
 

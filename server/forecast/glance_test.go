@@ -1000,8 +1000,8 @@ func TestFillSky(t *testing.T) {
 	add(10, 14, 100)
 	add(24, 24, 10)
 	c := &Chart{}
-	c.fillSky(&grid, start, start.AddDate(0, 0, 2))
-	if !strings.HasPrefix(c.SkyPath, "M218.8,0L218.8,100") || !strings.HasSuffix(c.SkyPath, ",0Z") || !strings.HasPrefix(c.SkyEdge, "M218.8,100") {
+	c.fillSky(&grid, start, start.AddDate(0, 0, 2), start)
+	if !strings.HasPrefix(c.SkyPath, "M208.3,0L208.3,100") || !strings.HasSuffix(c.SkyPath, ",0Z") || !strings.HasPrefix(c.SkyEdge, "M208.3,100") {
 		t.Errorf("sky path = %.60s… edge %.40s…", c.SkyPath, c.SkyEdge)
 	}
 	// The 7-hour average eases the change: the point for 1-2 AM (10 PM-5 AM: 2 overcast hours, 5
@@ -1010,8 +1010,14 @@ func TestFillSky(t *testing.T) {
 		t.Errorf("edge = %s", c.SkyEdge)
 	}
 	// Before the forecast starts there's no sky at all.
+	// Nothing before now: at 6 PM the shape starts at 6 PM.
 	c = &Chart{}
-	c.fillSky(&GridData{}, start, start.AddDate(0, 0, 2))
+	c.fillSky(&grid, start, start.AddDate(0, 0, 2), start.Add(18*time.Hour))
+	if !strings.HasPrefix(c.SkyPath, "M375,0L375,100") {
+		t.Errorf("sky path from 6 PM = %.40s…", c.SkyPath)
+	}
+	c = &Chart{}
+	c.fillSky(&GridData{}, start, start.AddDate(0, 0, 2), start)
 	if c.SkyPath != "" || c.SkyEdge != "" {
 		t.Errorf("empty sky = %q / %q", c.SkyPath, c.SkyEdge)
 	}

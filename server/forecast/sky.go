@@ -16,9 +16,9 @@ const (
 )
 
 // fillSky draws the forecast's cloud cover in the chart's top band, as a shape hanging from the top
-// as deep as the sky is covered: SkyPath is the filled shape, SkyEdge its lower edge. The forecast
-// starts when it was issued, so the earlier part of the chart has none.
-func (c *Chart) fillSky(grid *GridData, start, end time.Time) {
+// as deep as the sky is covered: SkyPath is the filled shape, SkyEdge its lower edge. It starts at
+// now: none of the stations report clouds, so the past has none.
+func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	ivs := grid.Properties.SkyCover.intervals()
 	coverAt := func(t time.Time) (float64, bool) {
 		for _, iv := range ivs {
@@ -40,14 +40,22 @@ func (c *Chart) fillSky(grid *GridData, start, end time.Time) {
 		}
 	}
 	xs, ys := []float64{}, []float64{}
-	for i := 0; i < len(hours); i += skyStepHours {
+	first := 0 // the first hour from now on; earlier hours still count in the averages
+	for first < len(hours) && hours[first].Add(time.Hour).Before(now) {
+		first++
+	}
+	for i := first; i < len(hours); i += skyStepHours {
 		sum, n := 0.0, 0
 		for d := -skySmoothHours / 2; d <= skySmoothHours/2; d++ {
 			if v, ok := cover[hours[i].Add(time.Duration(d)*time.Hour)]; ok {
 				sum, n = sum+v, n+1
 			}
 		}
-		xs, ys = append(xs, xOf(hours[i].Add(30*time.Minute))), append(ys, sum/float64(n))
+		x := xOf(hours[i].Add(30 * time.Minute))
+		if i == first {
+			x = math.Max(xOf(now), xOf(hours[i]))
+		}
+		xs, ys = append(xs, x), append(ys, sum/float64(n))
 	}
 	if len(xs) < 2 {
 		return
