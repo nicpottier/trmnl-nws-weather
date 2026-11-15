@@ -985,3 +985,34 @@ func TestAnchorNow(t *testing.T) {
 		t.Errorf("now_y = %v on %d..%d", c.NowY, c.TempMin, c.TempMax)
 	}
 }
+
+func TestFillSky(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	start := time.Date(2026, 11, 15, 0, 0, 0, 0, loc)
+	grid := GridData{}
+	add := func(h, hours int, v float64) {
+		grid.Properties.SkyCover.Values = append(grid.Properties.SkyCover.Values, struct {
+			ValidTime string   `json:"validTime"`
+			Value     *float64 `json:"value"`
+		}{start.Add(time.Duration(h)*time.Hour).Format(time.RFC3339) + fmt.Sprintf("/PT%dH", hours), &v})
+	}
+	// Issued at 10 AM: overcast until midnight, then clear.
+	add(10, 14, 100)
+	add(24, 24, 10)
+	c := &Chart{}
+	c.fillSky(&grid, start, start.AddDate(0, 0, 2))
+	if !strings.HasPrefix(c.SkyPath, "M218.8,0L218.8,100") || !strings.HasSuffix(c.SkyPath, ",0Z") || !strings.HasPrefix(c.SkyEdge, "M218.8,100") {
+		t.Errorf("sky path = %.60s… edge %.40s…", c.SkyPath, c.SkyEdge)
+	}
+	// The 7-hour average eases the change: the point for 1-2 AM (10 PM-5 AM: 2 overcast hours, 5
+	// clear) is in between.
+	if !strings.Contains(c.SkyEdge, " 531.3,35.7") {
+		t.Errorf("edge = %s", c.SkyEdge)
+	}
+	// Before the forecast starts there's no sky at all.
+	c = &Chart{}
+	c.fillSky(&GridData{}, start, start.AddDate(0, 0, 2))
+	if c.SkyPath != "" || c.SkyEdge != "" {
+		t.Errorf("empty sky = %q / %q", c.SkyPath, c.SkyEdge)
+	}
+}
