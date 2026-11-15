@@ -186,7 +186,7 @@
         {% if chart.wind_line != "" %}
         <svg class="wx__wind wx__gusts" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
         {% endif %}
-        <div class="wx__marks">{% for mark in chart.marks %}<div class="wx__{{ mark.kind }}" style="left: {{ mark.x }}%;">{% if mark.kind == "sun" %}<svg viewBox="0 -1 40 19" fill="#fff" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 0A8 8 0 0 0 28 0"/><path d="M29.5 5.5L34.3 8.2M25.5 9.5L28.2 14.3M20.0 11.0L20.0 16.5M14.5 9.5L11.8 14.3M10.5 5.5L5.7 8.2"/></svg>{% else %}<span class="label label--small lg:label--large">{{ mark.label }}{% render "wx_icon", name: "wind", size: 14 %}</span>{% endif %}</div>{% endfor %}</div>
+        <div class="wx__marks">{% for mark in chart.marks %}<div class="wx__{{ mark.kind }}" style="left: {{ mark.x }}%;">{% if mark.kind == "sun" %}<svg viewBox="0 -2 40 20" fill="#fff" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 0A8 8 0 0 0 28 0"/><path d="M31.0 0.0L36.5 0.0M27.8 7.8L31.7 11.7M20.0 11.0L20.0 16.5M12.2 7.8L8.3 11.7M9.0 0.0L3.5 0.0"/></svg>{% else %}<span class="label label--small lg:label--large">{{ mark.label }}{% render "wx_icon", name: "wind", size: 14 %}</span>{% endif %}</div>{% endfor %}</div>
         <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
         </div>
