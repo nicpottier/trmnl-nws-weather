@@ -20,6 +20,7 @@ type GridData struct {
 		SnowfallAmount            GridSeries `json:"snowfallAmount"`
 		QuantitativePrecipitation GridSeries `json:"quantitativePrecipitation"`
 		WindGust                  GridSeries `json:"windGust"` // km/h
+		SkyCover                  GridSeries `json:"skyCover"` // percent
 	} `json:"properties"`
 }
 
@@ -125,6 +126,8 @@ type Chart struct {
 	Bars      []Bar    `json:"bars"`         // one per 6 hours
 	Storms    []Storm  `json:"storms"`       // snow/rain totals per storm, centered under it
 	Gusts     []Storm  `json:"gusts"`        // peak gust per windy spell, centered under it
+	SkyPath   string   `json:"sky_path"`     // cloud cover hanging from the top, viewBox 0 0 1000 100 over the top band
+	Sky       []int    `json:"sky"`          // per 6 hours: -1 unknown, 0 mostly clear, 1 partly cloudy, 2 mostly cloudy
 	WindLine  string   `json:"wind_line"`    // gusts as a curve hanging from the top: SVG path, viewBox 0 0 1000 100 over the wind band
 	HasAmount bool     `json:"has_amount"`   // any snow/rain at all in the window
 	Days      int      `json:"days"`         // columns in the chart
@@ -190,6 +193,7 @@ func buildChart(grid *GridData, days []Day, loc *time.Location, now time.Time, u
 
 	c.fillBars(grid, days, start, end, today, now, units, barMode, seen)
 	c.fillWind(grid, days, start, end, now, units, seen)
+	c.fillSky(grid, start, end)
 	return c
 }
 
