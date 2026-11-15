@@ -54,11 +54,9 @@
   /* Layers, bottom up: sun, clouds, wind curve, gust label. */
   .wx__clouds { z-index: 2; }
   .wx__gusts { z-index: 3; }
-  /* Over a long clear, sunny stretch, a sun peeks down from the top edge. */
-  .wx__sun { position: absolute; top: 0; z-index: 1; width: 40px; transform: translateX(-50%); }
-  .screen--lg .wx__sun { width: 72px; }
-  .wx__sun--whole { top: 6px; }
-  .screen--lg .wx__sun--whole { top: 10px; width: 64px; }
+  /* Over a long clear, sunny stretch, a sun sits high in the open sky. */
+  .wx__sun { position: absolute; top: 1px; z-index: 1; width: 36px; transform: translateX(-50%); }
+  .screen--lg .wx__sun { top: 2px; width: 64px; }
   .wx__sun svg { display: block; width: 100%; height: auto; overflow: visible; }
   .wx__gust { position: absolute; top: 6px; z-index: 4; transform: translateX(-50%); white-space: nowrap; }
   .wx__gust .label { font-style: italic; gap: 3px; }
@@ -188,8 +186,7 @@
         {% if chart.wind_line != "" %}
         <svg class="wx__wind wx__gusts" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
         {% endif %}
-        {% assign sun_style = "a" %}
-        <div class="wx__marks">{% for mark in chart.marks %}<div class="wx__{{ mark.kind }}{% if mark.kind == "sun" and sun_style != "a" %} wx__sun--whole{% endif %}" style="left: {{ mark.x }}%;">{% if mark.kind == "sun" %}{% case sun_style %}{% when "b" %}<svg viewBox="-22 -22 44 44" fill="#fff" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><circle r="8"/><path d="M12.5 0.0L18.0 0.0M8.8 8.8L12.7 12.7M0.0 12.5L0.0 18.0M-8.8 8.8L-12.7 12.7M-12.5 0.0L-18.0 0.0M-8.8 -8.8L-12.7 -12.7M-0.0 -12.5L-0.0 -18.0M8.8 -8.8L12.7 -12.7"/></svg>{% when "c" %}<svg viewBox="-22 -22 44 44" fill="#aaaaaa" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><circle r="8.5"/><path d="M12.5 0.0L18.0 0.0M8.8 8.8L12.7 12.7M0.0 12.5L0.0 18.0M-8.8 8.8L-12.7 12.7M-12.5 0.0L-18.0 0.0M-8.8 -8.8L-12.7 -12.7M-0.0 -12.5L-0.0 -18.0M8.8 -8.8L12.7 -12.7"/></svg>{% else %}<svg viewBox="-24 -2 48 26" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><path d="M-9 0A9 9 0 0 0 9 0Z" fill="currentColor"/><path d="M13.0 0.0L21.0 0.0M9.2 9.2L14.8 14.8M0.0 13.0L0.0 21.0M-9.2 9.2L-14.8 14.8M-13.0 0.0L-21.0 0.0" fill="none"/></svg>{% endcase %}{% else %}<span class="label label--small lg:label--large">{{ mark.label }}{% render "wx_icon", name: "wind", size: 14 %}</span>{% endif %}</div>{% endfor %}</div>
+        <div class="wx__marks">{% for mark in chart.marks %}<div class="wx__{{ mark.kind }}" style="left: {{ mark.x }}%;">{% if mark.kind == "sun" %}<svg viewBox="-22 -22 44 44" fill="#fff" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><circle r="8"/><path d="M12.5 0.0L18.0 0.0M8.8 8.8L12.7 12.7M0.0 12.5L0.0 18.0M-8.8 8.8L-12.7 12.7M-12.5 0.0L-18.0 0.0M-8.8 -8.8L-12.7 -12.7M-0.0 -12.5L-0.0 -18.0M8.8 -8.8L12.7 -12.7"/></svg>{% else %}<span class="label label--small lg:label--large">{{ mark.label }}{% render "wx_icon", name: "wind", size: 14 %}</span>{% endif %}</div>{% endfor %}</div>
         <div class="wx__past bg--gray-70" style="width: {{ chart.now_pct }}%;">
           {% if chart.now_y %}<div class="wx__dot bg--black" style="top: {{ chart.now_y }}%;"></div>{% endif %}
         </div>
