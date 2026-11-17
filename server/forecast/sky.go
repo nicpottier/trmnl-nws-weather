@@ -21,7 +21,7 @@ const (
 // now: none of the stations report clouds, so the past has none.
 func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	ivs := grid.Properties.SkyCover.intervals()
-	coverAt := func(t time.Time) (float64, bool) {
+	skyAt := func(t time.Time) (float64, bool) {
 		for _, iv := range ivs {
 			if !t.Before(iv.start) && t.Before(iv.end) {
 				return iv.value, true
@@ -29,23 +29,29 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 		}
 		return 0, false
 	}
+	fogs := grid.Properties.Weather.fog()
 	span := float64(end.Sub(start))
 	xOf := func(t time.Time) float64 { return float64(t.Sub(start)) / span * 1000 }
 
+	// Per hour: the sky cover, the fog (as cover), and the two together. Sky cover leaves out fog,
+	// so a foggy morning would otherwise look clear.
 	hours := []time.Time{}
-	cover := map[time.Time]float64{}
+	sky, fog, both := map[time.Time]float64{}, map[time.Time]float64{}, map[time.Time]float64{}
 	for t := start; t.Before(end); t = t.Add(time.Hour) {
-		if v, ok := coverAt(t.Add(30 * time.Minute)); ok {
-			hours = append(hours, t)
-			cover[t] = v
+		mid := t.Add(30 * time.Minute)
+		v, ok := skyAt(mid)
+		if !ok {
+			continue
 		}
+		hours = append(hours, t)
+		f := fogs.at(mid)
+		sky[t], fog[t], both[t] = v, f, math.Max(v, f)
 	}
-	xs, ys := []float64{}, []float64{}
 	first := 0 // the first hour from now on; earlier hours still count in the averages
 	for first < len(hours) && hours[first].Add(time.Hour).Before(now) {
 		first++
 	}
-	smoothed := func(h time.Time) float64 {
+	smoothed := func(cover map[time.Time]float64, h time.Time) float64 {
 		sum, n := 0.0, 0
 		for d := -skySmoothHours / 2; d <= skySmoothHours/2; d++ {
 			if v, ok := cover[h.Add(time.Duration(d)*time.Hour)]; ok {
@@ -56,35 +62,94 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	}
 	c.skyHours = nil
 	for _, h := range hours[first:] {
-		c.skyHours = append(c.skyHours, skyHour{h, smoothed(h)})
+		c.skyHours = append(c.skyHours, skyHour{h, smoothed(both, h)})
 	}
-	for i := first; i < len(hours); i += skyStepHours {
-		x := xOf(hours[i].Add(30 * time.Minute))
-		if i == first {
-			x = math.Max(xOf(now), xOf(hours[i]))
+	shape := func(cover map[time.Time]float64) (path, edge string) {
+		xs, ys := []float64{}, []float64{}
+		for i := first; i < len(hours); i += skyStepHours {
+			x := xOf(hours[i].Add(30 * time.Minute))
+			if i == first {
+				x = math.Max(xOf(now), xOf(hours[i]))
+			}
+			xs, ys = append(xs, x), append(ys, cloudDepth(smoothed(cover, hours[i])))
 		}
-		xs, ys = append(xs, x), append(ys, cloudDepth(smoothed(hours[i])))
+		// One shape per covered stretch, each easing in from and out to the clear points beside it, so
+		// clear sky is left empty (no edge drawn along the top).
+		for i := 0; i < len(xs); i++ {
+			if ys[i] == 0 {
+				continue
+			}
+			from, to := max(i-1, 0), i
+			for to+1 < len(xs) && ys[to+1] > 0 {
+				to++
+			}
+			to = min(to+1, len(xs)-1)
+			if to > from {
+				e := smoothPath(xs[from:to+1], ys[from:to+1])
+				edge += e
+				path += "M" + fmtX(xs[from]) + ",0L" + strings.TrimPrefix(e, "M") + "L" + fmtX(xs[to]) + ",0Z"
+			}
+			i = to
+		}
+		return path, edge
 	}
+	c.SkyPath, c.SkyEdge = shape(both)
+	c.CloudPath, c.CloudEdge = shape(sky)
+	c.FogPath, c.FogEdge = shape(fog)
+}
 
-	// One shape per cloudy stretch, each easing in from and out to the clear points beside it, so
-	// clear sky is left empty (no edge drawn along the top).
-	c.SkyEdge, c.SkyPath = "", ""
-	for i := 0; i < len(xs); i++ {
-		if ys[i] == 0 {
+// WeatherSeries is the grid's "weather" layer: per interval, the expected conditions (fog, rain,
+// snow, ...) and how widespread they are.
+type WeatherSeries struct {
+	Values []struct {
+		ValidTime string `json:"validTime"`
+		Value     []struct {
+			Coverage string `json:"coverage"`
+			Weather  string `json:"weather"`
+		} `json:"value"`
+	} `json:"values"`
+}
+
+// fogCover maps the forecast's fog coverage to an equivalent cloud cover (%).
+var fogCover = map[string]float64{
+	"patchy": 50, "areas": 75, "widespread": 100, "definite": 100,
+	"slight_chance": 30, "chance": 50, "likely": 75,
+}
+
+type fogIntervals []interval
+
+// fog returns the intervals with fog (or freezing fog), valued by fogCover.
+func (w WeatherSeries) fog() fogIntervals {
+	out := fogIntervals{}
+	for _, v := range w.Values {
+		start, end, err := parseInterval(v.ValidTime)
+		if err != nil {
 			continue
 		}
-		from, to := max(i-1, 0), i
-		for to+1 < len(xs) && ys[to+1] > 0 {
-			to++
+		cover := 0.0
+		for _, c := range v.Value {
+			if c.Weather == "fog" || c.Weather == "freezing_fog" {
+				f, ok := fogCover[c.Coverage]
+				if !ok {
+					f = 75
+				}
+				cover = math.Max(cover, f)
+			}
 		}
-		to = min(to+1, len(xs)-1)
-		if to > from {
-			edge := smoothPath(xs[from:to+1], ys[from:to+1])
-			c.SkyEdge += edge
-			c.SkyPath += "M" + fmtX(xs[from]) + ",0L" + strings.TrimPrefix(edge, "M") + "L" + fmtX(xs[to]) + ",0Z"
+		if cover > 0 {
+			out = append(out, interval{start, end, cover})
 		}
-		i = to
 	}
+	return out
+}
+
+func (f fogIntervals) at(t time.Time) float64 {
+	for _, iv := range f {
+		if !t.Before(iv.start) && t.Before(iv.end) {
+			return iv.value
+		}
+	}
+	return 0
 }
 
 // clearSkyCover is the cloud cover (%) below which the sky counts as clear and nothing is drawn.
