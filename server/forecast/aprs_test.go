@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -65,6 +66,8 @@ func TestRainFromSamples(t *testing.T) {
 // fakeRedis implements the few sorted-set commands addCWOPRain uses, over Upstash's REST pipeline.
 func fakeRedis(t *testing.T) *httptest.Server {
 	sets := map[string]map[string]float64{}
+	hashes := map[string]map[string]string{}
+	strs := map[string]string{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/pipeline" || r.Header.Get("Authorization") != "Bearer test-token" {
 			http.Error(w, "bad request", http.StatusUnauthorized)
@@ -93,7 +96,35 @@ func fakeRedis(t *testing.T) *httptest.Server {
 			if sets[key] == nil {
 				sets[key] = map[string]float64{}
 			}
+			if hashes[key] == nil {
+				hashes[key] = map[string]string{}
+			}
 			switch c[0] {
+			case "HSET":
+				for i := 2; i+1 < len(c); i += 2 {
+					hashes[key][c[i].(string)] = c[i+1].(string)
+				}
+				out = append(out, map[string]any{"result": 1})
+			case "HGETALL":
+				flat := []string{}
+				for f, v := range hashes[key] {
+					flat = append(flat, f, v)
+				}
+				out = append(out, map[string]any{"result": flat})
+			case "HDEL":
+				for _, f := range c[2:] {
+					delete(hashes[key], f.(string))
+				}
+				out = append(out, map[string]any{"result": 1})
+			case "SET":
+				strs[key] = c[2].(string)
+				out = append(out, map[string]any{"result": "OK"})
+			case "GET":
+				if v, ok := strs[key]; ok {
+					out = append(out, map[string]any{"result": v})
+				} else {
+					out = append(out, map[string]any{"result": nil})
+				}
 			case "ZADD":
 				sets[key][c[3].(string)] = num(c[2])
 				out = append(out, map[string]any{"result": 1})
@@ -143,9 +174,9 @@ func TestAddCWOPRain(t *testing.T) {
 	}))
 	t.Cleanup(aprs.Close)
 	redis := fakeRedis(t)
-	oldBase, oldKey, oldStore := aprsBase, aprsKey, aprsStore
-	aprsBase, aprsKey, aprsStore = aprs.URL, "test-key", &redisStore{redis.URL, "test-token", http.DefaultClient}
-	t.Cleanup(func() { aprsBase, aprsKey, aprsStore = oldBase, oldKey, oldStore })
+	oldBase, oldKey, oldStore := aprsBase, aprsKey, stateStore
+	aprsBase, aprsKey, stateStore = aprs.URL, "test-key", &redisStore{redis.URL, "test-token", http.DefaultClient}
+	t.Cleanup(func() { aprsBase, aprsKey, stateStore = oldBase, oldKey, oldStore })
 
 	c := newNWSClient()
 	run := func() []stationSeries {
@@ -185,5 +216,59 @@ func TestAddCWOPRain(t *testing.T) {
 	report = base.Add(time.Hour)
 	if s := run(); len(s[1].Precip) != 0 {
 		t.Errorf("without a key precip = %+v", s[1].Precip)
+	}
+}
+
+// USDA's SNOTEL service goes down now and then (502s on Nov 16). Saved station lists and readings
+// carry the service through: the second run below, during an outage, still has the first run's
+// readings, and reports the outage.
+func TestSnotelOutage(t *testing.T) {
+	b, err := os.ReadFile("testdata/snotel_stevens_week.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	down := false
+	usda := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if down {
+			http.Error(w, "bad gateway", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/stations":
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"stationTriplet": "791:WA:SNTL", "name": "Stevens Pass", "elevation": 3940, "latitude": 47.7462, "longitude": -121.0919, "dataTimeZone": -8},
+				{"stationTriplet": "1338:WA:SNTL", "name": "Icicle Creek", "elevation": 4550, "latitude": 47.6, "longitude": -120.9, "dataTimeZone": -8},
+			})
+		case "/data":
+			w.Write(b)
+		}
+	}))
+	t.Cleanup(usda.Close)
+	redis := fakeRedis(t)
+	oldBase, oldStore := snotelBase, stateStore
+	snotelBase, stateStore = usda.URL, &redisStore{redis.URL, "test-token", http.DefaultClient}
+	t.Cleanup(func() { snotelBase, stateStore = oldBase, oldStore })
+
+	tz := time.FixedZone("PST", -8*3600)
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, tz)
+	since := now.Add(-49 * time.Hour)
+	run := func() ([]stationSeries, error) {
+		return newNWSClient().snotelSeriesNear(context.Background(), 47.7448, -121.0890, "WA", since, now) // fresh client: no in-memory cache
+	}
+	first, err := run()
+	if err != nil || len(first) != 1 || len(first[0].Precip) < 40 {
+		t.Fatalf("first run: %v, %d stations", err, len(first))
+	}
+	down = true
+	second, err := run()
+	if err == nil {
+		t.Error("the outage should be reported")
+	}
+	if len(second) != 1 || second[0].ID != "791:WA:SNTL" || len(second[0].Precip) != len(first[0].Precip) || len(second[0].Depth) != len(first[0].Depth) {
+		t.Fatalf("during the outage: %d stations, %+v", len(second), second)
+	}
+	// Away from any SNOTEL site (Leavenworth), the saved list means there's nothing to fetch, and no error.
+	if s, err := newNWSClient().snotelSeriesNear(context.Background(), 47.5962, -120.6615, "WA", since, now); err != nil || len(s) != 0 {
+		t.Errorf("Leavenworth during the outage: %v, %d stations", err, len(s))
 	}
 }

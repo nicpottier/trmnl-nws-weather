@@ -2,10 +2,13 @@ package forecast
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -56,9 +59,19 @@ func (c *nwsClient) snotelStations(ctx context.Context, state string) ([]snotelS
 	list := []snotelStation{}
 	u := snotelBase + "/stations?stationTriplets=" + url.QueryEscape("*:"+state+":SNTL") +
 		"&activeOnly=true&returnForecastPointMetadata=false&returnReservoirMetadata=false&returnStationElements=false"
+	key := "snotel:stations:" + state
 	if err := c.getAs(ctx, u, "application/json", &list); err != nil {
-		return nil, err
+		// USDA's service is down now and then: use the list saved last time, retrying in an hour.
+		saved, ok := loadJSON[[]snotelStation](ctx, key)
+		if !ok {
+			return nil, err
+		}
+		c.mu.Lock()
+		c.snotel[state] = cachedSnotel{time.Now().Add(time.Hour - stationListMaxAge), saved}
+		c.mu.Unlock()
+		return saved, nil
 	}
+	saveJSON(ctx, key, list, 30*24*time.Hour)
 	c.mu.Lock()
 	c.snotel[state] = cachedSnotel{time.Now(), list}
 	c.mu.Unlock()
@@ -92,9 +105,10 @@ func (c *nwsClient) snotelSeriesNear(ctx context.Context, lat, lon float64, stat
 	sort.SliceStable(found, func(i, j int) bool { return found[i].st.DistanceKm < found[j].st.DistanceKm })
 
 	var wg sync.WaitGroup
+	errs := make([]error, len(found))
 	for i := range found {
 		wg.Add(1)
-		go func(n *near) {
+		go func(i int, n *near) {
 			defer wg.Done()
 			// The service takes station-local dates; an hour of slack covers the hour before since.
 			from, to := since.Add(-time.Hour).In(n.tz), now.Add(time.Hour).In(n.tz)
@@ -103,11 +117,14 @@ func (c *nwsClient) snotelSeriesNear(ctx context.Context, lat, lon float64, stat
 				"&beginDate=" + url.QueryEscape(from.Format("2006-01-02 15:04")) +
 				"&endDate=" + url.QueryEscape(to.Format("2006-01-02 15:04"))
 			d := snotelData{}
-			if err := c.getAs(ctx, u, "application/json", &d); err != nil {
-				return
+			fresh := map[int64]snotelRecord{}
+			if errs[i] = c.getAs(ctx, u, "application/json", &d); errs[i] == nil {
+				fresh = snotelRecords(d, n.tz)
 			}
-			parseSnotel(d, n.tz, &n.st)
-		}(&found[i])
+			// Merge with the readings saved by earlier runs, so an outage only costs its own hours.
+			recs := mergeSnotelHistory(ctx, n.id, fresh, now)
+			seriesFromSnotel(recs, &n.st)
+		}(i, &found[i])
 	}
 	wg.Wait()
 
@@ -115,17 +132,22 @@ func (c *nwsClient) snotelSeriesNear(ctx context.Context, lat, lon float64, stat
 	for i, n := range found {
 		out[i] = n.st
 	}
-	return out, nil
+	return out, errors.Join(errs...)
 }
 
-// parseSnotel fills a station's series from an AWDB response. PREC is the water year's running
-// total (0.1″ resolution), so each reading's precipitation is the rise since the one before. Across
-// a gap of a few missing hours the rise counts at the reading after it rather than being lost; a
-// drop (the October reset, or a gauge correction) counts as none.
-func parseSnotel(d snotelData, tz *time.Location, s *stationSeries) {
+// snotelRecord is one hour at a SNOTEL station; the precipitation is the water year's running total.
+type snotelRecord struct {
+	T     int64    `json:"t"`
+	Prec  *float64 `json:"p,omitempty"`
+	Depth *float64 `json:"d,omitempty"`
+	Temp  *float64 `json:"f,omitempty"`
+}
+
+// snotelRecords collects an AWDB response into one record per hour, keyed by Unix time.
+func snotelRecords(d snotelData, tz *time.Location) map[int64]snotelRecord {
+	out := map[int64]snotelRecord{}
 	for _, st := range d {
 		for _, el := range st.Data {
-			prevT, prevV := time.Time{}, math.NaN()
 			for _, v := range el.Values {
 				if v.Value == nil {
 					continue
@@ -134,18 +156,126 @@ func parseSnotel(d snotelData, tz *time.Location, s *stationSeries) {
 				if err != nil {
 					continue
 				}
+				r := out[t.Unix()]
+				r.T = t.Unix()
+				val := *v.Value
 				switch el.StationElement.ElementCode {
 				case "PREC":
-					if gap := t.Sub(prevT); gap > 0 && gap <= maxSnotelGap {
-						s.Precip = append(s.Precip, reading{t, math.Max(0, math.Round((*v.Value-prevV)*100)/100)})
-					}
-					prevT, prevV = t, *v.Value
+					r.Prec = &val
 				case "SNWD":
-					s.Depth = append(s.Depth, reading{t, *v.Value})
+					r.Depth = &val
 				case "TOBS":
-					s.Times, s.TempF = append(s.Times, t), append(s.TempF, *v.Value)
+					r.Temp = &val
+				}
+				out[t.Unix()] = r
+			}
+		}
+	}
+	return out
+}
+
+// snotelKeep is how long SNOTEL readings are saved.
+const snotelKeep = 72 * time.Hour
+
+// mergeSnotelHistory merges fresh readings into the station's saved ones (fresh values win, field by
+// field), saves the result and drops readings older than snotelKeep. Without a store it returns the
+// fresh readings.
+func mergeSnotelHistory(ctx context.Context, id string, fresh map[int64]snotelRecord, now time.Time) []snotelRecord {
+	merged := map[int64]snotelRecord{}
+	key := "snotel:" + id
+	var stale []any
+	if stateStore != nil {
+		if res, err := stateStore.pipeline(ctx, []any{"HGETALL", key}); err == nil && len(res) == 1 {
+			var flat []string
+			if json.Unmarshal(res[0], &flat) == nil {
+				for i := 0; i+1 < len(flat); i += 2 {
+					r := snotelRecord{}
+					if json.Unmarshal([]byte(flat[i+1]), &r) != nil {
+						continue
+					}
+					if time.Unix(r.T, 0).Before(now.Add(-snotelKeep)) {
+						stale = append(stale, flat[i])
+						continue
+					}
+					merged[r.T] = r
 				}
 			}
+		}
+	}
+	changed := []any{}
+	for t, f := range fresh {
+		if time.Unix(t, 0).Before(now.Add(-snotelKeep)) {
+			continue
+		}
+		r := merged[t]
+		r.T = t
+		if f.Prec != nil {
+			r.Prec = f.Prec
+		}
+		if f.Depth != nil {
+			r.Depth = f.Depth
+		}
+		if f.Temp != nil {
+			r.Temp = f.Temp
+		}
+		if old, ok := merged[t]; !ok || !sameRecord(old, r) {
+			b, _ := json.Marshal(r)
+			changed = append(changed, strconv.FormatInt(t, 10), string(b))
+		}
+		merged[t] = r
+	}
+	if stateStore != nil && (len(changed) > 0 || len(stale) > 0) {
+		cmds := [][]any{}
+		if len(changed) > 0 {
+			cmds = append(cmds, append([]any{"HSET", key}, changed...))
+		}
+		if len(stale) > 0 {
+			cmds = append(cmds, append([]any{"HDEL", key}, stale...))
+		}
+		stateStore.pipeline(ctx, cmds...) // best effort: next run tries again
+	}
+	out := make([]snotelRecord, 0, len(merged))
+	for _, r := range merged {
+		out = append(out, r)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].T < out[j].T })
+	return out
+}
+
+func sameRecord(a, b snotelRecord) bool {
+	eq := func(x, y *float64) bool { return (x == nil) == (y == nil) && (x == nil || *x == *y) }
+	return a.T == b.T && eq(a.Prec, b.Prec) && eq(a.Depth, b.Depth) && eq(a.Temp, b.Temp)
+}
+
+// parseSnotel fills a station's series from an AWDB response (see seriesFromSnotel).
+func parseSnotel(d snotelData, tz *time.Location, s *stationSeries) {
+	recs := []snotelRecord{}
+	for _, r := range snotelRecords(d, tz) {
+		recs = append(recs, r)
+	}
+	sort.Slice(recs, func(i, j int) bool { return recs[i].T < recs[j].T })
+	seriesFromSnotel(recs, s)
+}
+
+// seriesFromSnotel fills a station's series from hourly records, oldest first. PREC is the water
+// year's running total (0.1″ resolution), so each reading's precipitation is the rise since the one
+// before. Across a gap of a few missing hours the rise counts at the reading after it rather than
+// being lost; a drop (the October reset, or a gauge correction) counts as none.
+func seriesFromSnotel(recs []snotelRecord, s *stationSeries) {
+	prevT, prevV := time.Time{}, math.NaN()
+	for _, r := range recs {
+		t := time.Unix(r.T, 0)
+		if r.Prec != nil {
+			if gap := t.Sub(prevT); gap > 0 && gap <= maxSnotelGap {
+				s.Precip = append(s.Precip, reading{t, math.Max(0, math.Round((*r.Prec-prevV)*100)/100)})
+			}
+			prevT, prevV = t, *r.Prec
+		}
+		if r.Depth != nil {
+			s.Depth = append(s.Depth, reading{t, *r.Depth})
+		}
+		if r.Temp != nil {
+			s.Times, s.TempF = append(s.Times, t), append(s.TempF, *r.Temp)
 		}
 	}
 }

@@ -26,7 +26,6 @@ import (
 var (
 	aprsBase   = "https://api.aprs.fi/api/get"
 	aprsKey    = os.Getenv("APRS_FI_KEY")
-	aprsStore  = newRedisStore()
 	aprsKeep   = 72 * time.Hour // history kept per station
 	aprsMaxGap = 3 * time.Hour  // longer gaps between saved reports are left unknown
 )
@@ -65,7 +64,7 @@ type aprsResponse struct {
 // addCWOPRain gives the CWOP stations among `series` their rain: it fetches their latest reports,
 // saves them, and fills each station's Precip from its saved history.
 func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, loc *time.Location, now time.Time) error {
-	if aprsKey == "" || aprsStore == nil {
+	if aprsKey == "" || stateStore == nil {
 		return nil
 	}
 	index := map[string]int{}
@@ -108,7 +107,7 @@ func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, loc
 		cmds = append(cmds, []any{"ZREMRANGEBYSCORE", key, "-inf", oldest - 1})
 		cmds = append(cmds, []any{"ZRANGEBYSCORE", key, oldest, "+inf"})
 	}
-	results, err := aprsStore.pipeline(ctx, cmds...)
+	results, err := stateStore.pipeline(ctx, cmds...)
 	if err != nil {
 		return fmt.Errorf("saving rain history: %w", err)
 	}

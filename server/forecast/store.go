@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+// stateStore keeps state between runs: home-station rain reports (aprs.go) and SNOTEL readings and
+// station lists (snotel.go), so the service can bridge gaps and outages. Nil when not configured.
+var stateStore = newRedisStore()
+
 // redisStore keeps a little state between runs in Upstash Redis, through its REST API. Vercel's
 // Upstash integration sets KV_REST_API_URL and KV_REST_API_TOKEN; Upstash itself names them
 // UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.
@@ -63,4 +67,33 @@ func (r *redisStore) pipeline(ctx context.Context, cmds ...[]any) ([]json.RawMes
 		results[i] = o.Result
 	}
 	return results, nil
+}
+
+// saveJSON stores a value under key for ttl, best effort.
+func saveJSON(ctx context.Context, key string, v any, ttl time.Duration) {
+	if stateStore == nil {
+		return
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return
+	}
+	stateStore.pipeline(ctx, []any{"SET", key, string(b), "EX", int(ttl.Seconds())})
+}
+
+// loadJSON reads a value saved with saveJSON.
+func loadJSON[T any](ctx context.Context, key string) (T, bool) {
+	var v T
+	if stateStore == nil {
+		return v, false
+	}
+	res, err := stateStore.pipeline(ctx, []any{"GET", key})
+	if err != nil || len(res) != 1 {
+		return v, false
+	}
+	var s *string
+	if json.Unmarshal(res[0], &s) != nil || s == nil || json.Unmarshal([]byte(*s), &v) != nil {
+		return v, false
+	}
+	return v, true
 }
