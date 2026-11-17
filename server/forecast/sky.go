@@ -16,8 +16,9 @@ const (
 )
 
 // fillSky draws the forecast's cloud cover in the chart's top band, as a shape hanging from the top
-// as deep as the sky is covered beyond clear (see cloudDepth): SkyPath is the filled shape, SkyEdge
-// its lower edge. It starts at
+// as deep as the sky is covered beyond clear (see cloudDepth): CloudPath and CloudEdge for the sky
+// cover, FogPath and FogEdge for forecast fog, which sky cover leaves out. The sun (skyHours) goes by
+// the two together. It starts at
 // now: none of the stations report clouds, so the past has none.
 func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	ivs := grid.Properties.SkyCover.intervals()
@@ -93,7 +94,6 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 		}
 		return path, edge
 	}
-	c.SkyPath, c.SkyEdge = shape(both)
 	c.CloudPath, c.CloudEdge = shape(sky)
 	c.FogPath, c.FogEdge = shape(fog)
 }

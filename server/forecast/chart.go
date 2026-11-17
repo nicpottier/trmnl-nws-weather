@@ -127,14 +127,12 @@ type Chart struct {
 	Bars      []Bar     `json:"bars"`       // one per 6 hours
 	Storms    []Storm   `json:"storms"`     // snow/rain totals per storm, centered under it
 	Gusts     []Storm   `json:"gusts"`      // peak gust per windy spell, centered under it
-	SkyPath   string    `json:"sky_path"`   // cloud cover hanging from the top, viewBox 0 0 1000 100 over the top band
 	Marks     []Mark    `json:"marks"`      // suns and gust labels for the top band, left to right
 	Suns      []float64 `json:"suns"`       // where a sun peeks out over a clear, sunny stretch: x, 0-100 %
 	CloudPath string    `json:"cloud_path"` // sky cover alone, without fog (mockup)
 	CloudEdge string    `json:"cloud_edge"`
 	FogPath   string    `json:"fog_path"` // fog alone, as cover (mockup)
 	FogEdge   string    `json:"fog_edge"`
-	SkyEdge   string    `json:"sky_edge"`     // the same shape's lower edge, as a line
 	WindLine  string    `json:"wind_line"`    // gusts as a curve hanging from the top: SVG path, viewBox 0 0 1000 100 over the wind band
 	HasAmount bool      `json:"has_amount"`   // any snow/rain at all in the window
 	Days      int       `json:"days"`         // columns in the chart

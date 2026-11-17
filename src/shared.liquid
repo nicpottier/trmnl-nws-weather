@@ -48,7 +48,8 @@
     content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 1px; transform: translateX(-50%);
     background: repeating-linear-gradient(to bottom, currentColor 0 2px, transparent 2px 6px);
   }
-  /* The top quarter is the sky: cloud cover hangs from the top as deep as the sky is covered, and each
+  /* The top quarter is the sky: cloud cover hangs from the top as deep as the sky is covered (fog under
+     it, drawn as lines), and each
      windy spell is a dotted curve through it, with its peak gust in the dip. */
   .wx__wind, .wx__marks { position: absolute; top: 0; left: 0; width: 100%; height: 25%; overflow: visible; }
   /* Layers, bottom up: sun, clouds, wind curve, gust label. */
@@ -182,12 +183,7 @@
           <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
           {% endfor %}
         </div>
-        {% assign fog_style = "a" %}
-        {% if fog_style == "b" %}
         <svg class="wx__wind wx__clouds" viewBox="0 0 1000 100" preserveAspectRatio="none"><defs><pattern id="wx-fog" patternUnits="userSpaceOnUse" width="1000" height="11"><rect width="1000" height="2.5" fill="#777777"/></pattern></defs>{% if chart.fog_path != "" %}<path d="{{ chart.fog_path }}" fill="url(#wx-fog)"/>{% endif %}{% if chart.cloud_path != "" %}<path d="{{ chart.cloud_path }}" fill="#dddddd"/><path d="{{ chart.cloud_edge }}" fill="none" stroke="#999999" stroke-width="1.5" vector-effect="non-scaling-stroke"/>{% endif %}</svg>
-        {% else %}
-        {% if chart.sky_path != "" %}<svg class="wx__wind wx__clouds" viewBox="0 0 1000 100" preserveAspectRatio="none"><path d="{{ chart.sky_path }}" fill="#dddddd"/><path d="{{ chart.sky_edge }}" fill="none" stroke="#999999" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>{% endif %}
-        {% endif %}
         {% if chart.wind_line != "" %}
         <svg class="wx__wind wx__gusts" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
         {% endif %}

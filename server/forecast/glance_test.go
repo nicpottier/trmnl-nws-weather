@@ -1001,30 +1001,30 @@ func TestFillSky(t *testing.T) {
 	add(24, 24, 10)
 	c := &Chart{}
 	c.fillSky(&grid, start, start.AddDate(0, 0, 2), start)
-	if !strings.HasPrefix(c.SkyPath, "M208.3,0L208.3,100") || !strings.HasSuffix(c.SkyPath, ",0Z") || !strings.HasPrefix(c.SkyEdge, "M208.3,100") {
-		t.Errorf("sky path = %.60s… edge %.40s…", c.SkyPath, c.SkyEdge)
+	if !strings.HasPrefix(c.CloudPath, "M208.3,0L208.3,100") || !strings.HasSuffix(c.CloudPath, ",0Z") || !strings.HasPrefix(c.CloudEdge, "M208.3,100") {
+		t.Errorf("sky path = %.60s… edge %.40s…", c.CloudPath, c.CloudEdge)
 	}
 	// The 7-hour average eases the change: the point for 1-2 AM (10 PM-5 AM: 2 overcast hours, 5
 	// clear) averages 35.7%, which hangs (35.7-25)/75 = 14.3% deep.
-	if !strings.Contains(c.SkyEdge, " 531.3,14.3") {
-		t.Errorf("edge = %s", c.SkyEdge)
+	if !strings.Contains(c.CloudEdge, " 531.3,14.3") {
+		t.Errorf("edge = %s", c.CloudEdge)
 	}
 	// Under 25% is clear: the shape ends at the first clear point, with nothing drawn after it,
 	// and the curve stays inside the band.
-	if !strings.HasSuffix(c.SkyEdge, " 593.8,0") || strings.Contains(c.SkyEdge, "-") {
-		t.Errorf("edge = %s", c.SkyEdge)
+	if !strings.HasSuffix(c.CloudEdge, " 593.8,0") || strings.Contains(c.CloudEdge, "-") {
+		t.Errorf("edge = %s", c.CloudEdge)
 	}
 	// Before the forecast starts there's no sky at all.
 	// Nothing before now: at 6 PM the shape starts at 6 PM.
 	c = &Chart{}
 	c.fillSky(&grid, start, start.AddDate(0, 0, 2), start.Add(18*time.Hour))
-	if !strings.HasPrefix(c.SkyPath, "M375,0L375,100") {
-		t.Errorf("sky path from 6 PM = %.40s…", c.SkyPath)
+	if !strings.HasPrefix(c.CloudPath, "M375,0L375,100") {
+		t.Errorf("sky path from 6 PM = %.40s…", c.CloudPath)
 	}
 	c = &Chart{}
 	c.fillSky(&GridData{}, start, start.AddDate(0, 0, 2), start)
-	if c.SkyPath != "" || c.SkyEdge != "" {
-		t.Errorf("empty sky = %q / %q", c.SkyPath, c.SkyEdge)
+	if c.CloudPath != "" || c.CloudEdge != "" {
+		t.Errorf("empty sky = %q / %q", c.CloudPath, c.CloudEdge)
 	}
 }
 
@@ -1073,5 +1073,34 @@ func TestPlaceSuns(t *testing.T) {
 	c.placeSuns(47.5962, -120.6615, loc)
 	if len(c.Suns) != 0 {
 		t.Errorf("suns after clouding over = %v", c.Suns)
+	}
+}
+
+// Nov 17 in Leavenworth: sky cover 3-5% all day, but areas of fog until 10 AM.
+func TestFogCountsAsCover(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	start := time.Date(2026, 11, 17, 0, 0, 0, 0, loc)
+	grid := GridData{}
+	clear := 4.0
+	grid.Properties.SkyCover.Values = append(grid.Properties.SkyCover.Values, struct {
+		ValidTime string   `json:"validTime"`
+		Value     *float64 `json:"value"`
+	}{start.Format(time.RFC3339) + "/PT48H", &clear})
+	if err := json.Unmarshal([]byte(`{"values":[{"validTime":"`+start.Format(time.RFC3339)+`/PT10H","value":[{"coverage":"areas","weather":"fog"}]}]}`), &grid.Properties.Weather); err != nil {
+		t.Fatal(err)
+	}
+	c := &Chart{}
+	c.fillSky(&grid, start, start.AddDate(0, 0, 2), start.Add(7*time.Hour))
+	if c.CloudPath != "" || c.FogPath == "" {
+		t.Errorf("clouds %q, fog %q", c.CloudPath, c.FogPath)
+	}
+	// The sun goes by fog and cloud together: covered at 7 AM, clear by noon.
+	cover := map[time.Time]float64{}
+	for _, h := range c.skyHours {
+		cover[h.t] = h.cover
+	}
+	at7, atNoon := cover[start.Add(7*time.Hour)], cover[start.Add(12*time.Hour)]
+	if at7 < clearSkyCover || atNoon >= clearSkyCover {
+		t.Errorf("cover at 7 AM %.0f, noon %.0f", at7, atNoon)
 	}
 }
