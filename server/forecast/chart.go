@@ -344,9 +344,9 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 
 	// Storms: runs of wet blocks, each labeled with its totals. A single dry block between two runs
 	// is a lull, not the end of a storm; and storms whose labels would collide are combined.
-	minSnow, minRain := stormMinSnowIn, stormMinRainIn
+	minSnow, minRain, stormSnow := stormMinSnowIn, stormMinRainIn, stormLabelSnowIn
 	if units == "si" {
-		minSnow, minRain = stormMinSnowCm, stormMinRainMm
+		minSnow, minRain, stormSnow = stormMinSnowCm, stormMinRainMm, stormLabelSnowCm
 	}
 	label := func(r [2]int) (Storm, bool) {
 		sn, rn := 0.0, 0.0
@@ -354,7 +354,7 @@ func (c *Chart) fillBars(grid *GridData, days []Day, start, end, today, now time
 			sn, rn = sn+b.snow, rn+b.rain
 		}
 		s := Storm{X: runCenter(r, len(buckets)), Labels: []string{}}
-		if roundAmount(sn, "snow", units) >= flurries {
+		if roundAmount(sn, "snow", units) >= stormSnow {
 			s.Labels = append(s.Labels, formatAmount(sn, "snow", units))
 		}
 		if roundAmount(rn, "rain", units) >= sprinkles {

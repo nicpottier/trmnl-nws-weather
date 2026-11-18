@@ -16,6 +16,10 @@ const (
 	stormMinRainMm, stormMinSnowCm = 0.5, 0.5
 )
 
+// A storm's snow gets a number once it adds up to half an inch: lighter than the daily "Flurries"
+// cutoff, since the bars and falling snow already show where it is and the number says how much.
+const stormLabelSnowIn, stormLabelSnowCm = 0.5, 1.0
+
 // stormMaxLull is how many dry blocks in a row can sit inside one storm; minStormLabelGap is how
 // close (in % of the chart's width) two storms' labels can be before the storms are combined. A
 // label is about 7% wide on a TRMNL X.
