@@ -357,7 +357,7 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 		len(days[2].Amounts) != 0 {
 		t.Errorf("amounts = %q / %q / %q", days[0].Amounts, days[1].Amounts, days[2].Amounts)
 	}
-	if c.TempMin != 20 || c.TempMax != 45 || c.FreezeY == nil || c.Label != "Snow 2.0″ · Rain 0.50″" {
+	if c.TempMin != 20 || c.TempMax != 55 || c.FreezeY == nil || c.Label != "Snow 2.0″ · Rain 0.50″" {
 		t.Errorf("scale %d-%d freeze %v label %q", c.TempMin, c.TempMax, c.FreezeY, c.Label)
 	}
 
@@ -428,16 +428,16 @@ func TestShareScale(t *testing.T) {
 	ShareScale([]*Chart{valley, nil, pass})
 
 	for _, c := range []*Chart{valley, pass} {
-		if c.TempMin != 20 || c.TempMax != 60 || c.FreezeY == nil || *c.FreezeY != 70 {
+		if c.TempMin != 20 || c.TempMax != 75 || c.FreezeY == nil || *c.FreezeY != 78.2 {
 			t.Errorf("chart scale = %d..%d, freeze %v", c.TempMin, c.TempMax, c.FreezeY)
 		}
 	}
-	// Halfway between 30° and 56° is 43°, 42.5% down a 20..60 scale.
-	if valley.NowY == nil || *valley.NowY != 42.5 {
+	// Halfway between 30° and 56° is 43°, 58.2% down a 20..75 scale (60 plus headroom).
+	if valley.NowY == nil || *valley.NowY != 58.2 {
 		t.Errorf("valley now_y = %v", valley.NowY)
 	}
-	// 41° on a 20..60 scale sits 47.5% down from the top.
-	if pass.TempPath != "M0.0,95.0L500.0,47.5" {
+	// 41° on a 20..75 scale sits 61.8% down from the top.
+	if pass.TempPath != "M0.0,96.4L500.0,61.8" {
 		t.Errorf("path = %q", pass.TempPath)
 	}
 }

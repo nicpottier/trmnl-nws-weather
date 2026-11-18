@@ -179,7 +179,7 @@ const skyBandPct = 25.0
 
 // fallPct is how far rain and snow fall below the clouds, in % of the plot: the same for any amount,
 // since the bars below give the amounts.
-const fallPct = 18.0
+const fallPct = 9.0
 
 // fillFalling draws rain and snow falling from the clouds: for each run of 6-hour blocks with the
 // same kind of precipitation, a shape whose top follows the clouds' lower edge (cloudBottom, in %

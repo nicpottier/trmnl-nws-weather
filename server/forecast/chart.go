@@ -503,7 +503,8 @@ func (c *Chart) anchorNow(temp float64) {
 }
 
 // tempRange returns the chart's temperature extremes, rounded out to a multiple of 5 so the
-// line never touches the top or bottom edge.
+// line never touches the top or bottom edge, with the top raised (by tempHeadroom of the range,
+// also in 5s) so the line stays clear of the clouds, sun and wind at the top.
 func (c *Chart) tempRange() (int, int, bool) {
 	if len(c.samples) < 2 {
 		return 0, 0, false
@@ -512,8 +513,13 @@ func (c *Chart) tempRange() (int, int, bool) {
 	for _, s := range c.samples {
 		lo, hi = math.Min(lo, s.t), math.Max(hi, s.t)
 	}
-	return int(math.Floor((lo-1)/5) * 5), int(math.Ceil((hi+1)/5) * 5), true
+	l, h := math.Floor((lo-1)/5)*5, math.Ceil((hi+1)/5)*5
+	h += math.Ceil((h-l)*tempHeadroom/5) * 5
+	return int(l), int(h), true
 }
+
+// tempHeadroom is how much higher than the range the chart's top goes, as a share of the range.
+const tempHeadroom = 0.3
 
 // setScale (re)draws the temperature line and freezing line for a chart spanning lo..hi.
 func (c *Chart) setScale(lo, hi int) {
