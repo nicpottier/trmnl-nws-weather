@@ -1015,11 +1015,12 @@ func TestFillSky(t *testing.T) {
 		t.Errorf("edge = %s", c.CloudEdge)
 	}
 	// Before the forecast starts there's no sky at all.
-	// Nothing before now: at 6 PM the shape starts at 6 PM.
+	// Past hours are drawn too (they come from saved forecasts, see addSkyHistory): at 6 PM the shape
+	// still starts with the forecast at 10 AM.
 	c = &Chart{}
 	c.fillSky(&grid, start, start.AddDate(0, 0, 2), start.Add(18*time.Hour))
-	if !strings.HasPrefix(c.CloudPath, "M375,0L375,100") {
-		t.Errorf("sky path from 6 PM = %.40s…", c.CloudPath)
+	if !strings.HasPrefix(c.CloudPath, "M208.3,0L208.3,100") {
+		t.Errorf("sky path at 6 PM = %.40s…", c.CloudPath)
 	}
 	c = &Chart{}
 	c.fillSky(&GridData{}, start, start.AddDate(0, 0, 2), start)

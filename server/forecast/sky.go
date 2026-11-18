@@ -30,7 +30,7 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 		}
 		return 0, false
 	}
-	fogs := grid.Properties.Weather.fog()
+	fogs := append(grid.Properties.Weather.fog(), grid.pastFog...)
 	span := float64(end.Sub(start))
 	xOf := func(t time.Time) float64 { return float64(t.Sub(start)) / span * 1000 }
 
@@ -67,10 +67,11 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	}
 	shape := func(cover map[time.Time]float64) (path, edge string) {
 		xs, ys := []float64{}, []float64{}
-		for i := first; i < len(hours); i += skyStepHours {
+		// Past hours too: they come from the forecast saved as each hour arrived (skyhistory.go).
+		for i := 0; i < len(hours); i += skyStepHours {
 			x := xOf(hours[i].Add(30 * time.Minute))
-			if i == first {
-				x = math.Max(xOf(now), xOf(hours[i]))
+			if i == 0 {
+				x = xOf(hours[i])
 			}
 			xs, ys = append(xs, x), append(ys, cloudDepth(smoothed(cover, hours[i])))
 		}
@@ -95,20 +96,14 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 		return path, edge
 	}
 	c.CloudPath, c.CloudEdge = shape(sky)
-
-	// Where each 6-hour block's cloud ends, so rain and snow can fall from it: the cloud's depth at
-	// the block's middle (the band is the plot's top quarter). Blocks already past have no clouds.
-	c.BarTops = make([]float64, len(c.Bars))
-	for k := range c.BarTops {
-		mid := start.Add(time.Duration(k*barHours)*time.Hour + barHours*time.Hour/2).Truncate(time.Hour)
-		if mid.Before(now) {
-			continue
-		}
-		if _, ok := sky[mid]; ok {
-			c.BarTops[k] = math.Round(cloudDepth(smoothed(sky, mid))*0.25*10) / 10
-		}
-	}
 	c.FogPath, c.FogEdge = shape(fog)
+
+	c.fillFalling(start, end, now, func(h time.Time) float64 {
+		if _, ok := sky[h]; !ok { // no clouds known (before the saved history): fall from the top
+			return 0
+		}
+		return cloudDepth(smoothed(sky, h)) * skyBandPct / 100
+	})
 }
 
 // WeatherSeries is the grid's "weather" layer: per interval, the expected conditions (fog, rain,
@@ -178,3 +173,68 @@ func cloudDepth(cover float64) float64 {
 }
 
 func fmtX(v float64) string { return strconv.FormatFloat(math.Round(v*10)/10, 'f', -1, 64) }
+
+// skyBandPct is the top band's share of the plot height (the clouds, fog, sun and wind live there).
+const skyBandPct = 25.0
+
+// fallPct is how far rain and snow fall below the clouds, in % of the plot: the same for any amount,
+// since the bars below give the amounts.
+const fallPct = 18.0
+
+// fillFalling draws rain and snow falling from the clouds: for each run of 6-hour blocks with the
+// same kind of precipitation, a shape whose top follows the clouds' lower edge (cloudBottom, in %
+// of the plot, by hour) and that hangs fallPct below it, tapering where the precipitation starts
+// and stops.
+func (c *Chart) fillFalling(start, end, now time.Time, cloudBottom func(time.Time) float64) {
+	c.RainPath, c.SnowPath = "", ""
+	span := float64(end.Sub(start))
+	xOf := func(t time.Time) float64 { return float64(t.Sub(start)) / span * 1000 }
+	kind := func(k int) string {
+		if k < 0 || k >= len(c.Bars) {
+			return ""
+		}
+		return c.Bars[k].Kind
+	}
+	for k := 0; k < len(c.Bars); k++ {
+		kd := kind(k)
+		if kd == "" {
+			continue
+		}
+		to := k
+		for kind(to+1) == kd {
+			to++
+		}
+		from, until := start.Add(time.Duration(k*barHours)*time.Hour), start.Add(time.Duration((to+1)*barHours)*time.Hour)
+		taperIn, taperOut := kind(k-1) == "", kind(to+1) == ""
+		xs, tops, bottoms := []float64{}, []float64{}, []float64{}
+		for t := from; !t.After(until); t = t.Add(time.Hour) {
+			h := t
+			if !h.Before(until) {
+				h = until.Add(-time.Hour)
+			}
+			top := cloudBottom(h)
+			length := fallPct
+			if in := t.Sub(from).Hours(); taperIn && in < 3 {
+				length *= 0.25 + 0.75*in/3
+			}
+			if out := until.Sub(t).Hours(); taperOut && out < 3 {
+				length *= 0.25 + 0.75*out/3
+			}
+			xs, tops, bottoms = append(xs, xOf(t)), append(tops, top), append(bottoms, top+length)
+		}
+		// Top edge left to right, then the bottom edge back, both smoothed.
+		rx, rb := make([]float64, len(xs)), make([]float64, len(xs))
+		for i := range xs {
+			rx[len(xs)-1-i], rb[len(xs)-1-i] = xs[i], bottoms[i]
+		}
+		top := smoothPath(xs, tops)
+		bottom := smoothPath(rx, rb)
+		shape := top + "L" + strings.TrimPrefix(bottom, "M") + "Z"
+		if kd == "snow" {
+			c.SnowPath += shape
+		} else {
+			c.RainPath += shape
+		}
+		k = to
+	}
+}

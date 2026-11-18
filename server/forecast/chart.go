@@ -23,6 +23,8 @@ type GridData struct {
 		SkyCover                  GridSeries    `json:"skyCover"` // percent
 		Weather                   WeatherSeries `json:"weather"`
 	} `json:"properties"`
+
+	pastFog fogIntervals // fog saved from earlier forecasts, for hours before this one starts (skyhistory.go)
 }
 
 type GridSeries struct {
@@ -129,7 +131,8 @@ type Chart struct {
 	Gusts     []Storm   `json:"gusts"`      // peak gust per windy spell, centered under it
 	Marks     []Mark    `json:"marks"`      // suns and gust labels for the top band, left to right
 	Suns      []float64 `json:"suns"`       // where a sun peeks out over a clear, sunny stretch: x, 0-100 %
-	BarTops   []float64 `json:"bar_tops"`   // per 6 hours: where its cloud's bottom edge is, 0-100 % of the plot (0 with no cloud)
+	RainPath  string    `json:"rain_path"`  // rain falling from the clouds: SVG path over the whole plot, viewBox 0 0 1000 100
+	SnowPath  string    `json:"snow_path"`  // the same for snow
 	CloudPath string    `json:"cloud_path"` // sky cover alone, without fog (mockup)
 	CloudEdge string    `json:"cloud_edge"`
 	FogPath   string    `json:"fog_path"` // fog alone, as cover (mockup)

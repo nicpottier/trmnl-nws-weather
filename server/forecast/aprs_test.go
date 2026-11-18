@@ -272,3 +272,42 @@ func TestSnotelOutage(t *testing.T) {
 		t.Errorf("Leavenworth during the outage: %v, %d stations", err, len(s))
 	}
 }
+
+// Each run saves the latest forecast for the current hour; later runs, whose forecasts start after
+// it, get it back for the past.
+func TestSkyHistory(t *testing.T) {
+	redis := fakeRedis(t)
+	old := stateStore
+	stateStore = &redisStore{redis.URL, "test-token", http.DefaultClient}
+	t.Cleanup(func() { stateStore = old })
+
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	gridFrom := func(from time.Time, sky float64, fog string) *GridData {
+		g := &GridData{}
+		g.Properties.SkyCover.Values = append(g.Properties.SkyCover.Values, struct {
+			ValidTime string   `json:"validTime"`
+			Value     *float64 `json:"value"`
+		}{from.Format(time.RFC3339) + "/PT24H", &sky})
+		if fog != "" {
+			json.Unmarshal([]byte(`{"values":[{"validTime":"`+from.Format(time.RFC3339)+`/PT24H","value":[{"coverage":"`+fog+`","weather":"fog"}]}]}`), &g.Properties.Weather)
+		}
+		return g
+	}
+	// 8 AM: foggy and clear; the forecast starts at 6 AM.
+	at8 := time.Date(2026, 11, 17, 8, 15, 0, 0, loc)
+	addSkyHistory(context.Background(), gridFrom(at8.Add(-2*time.Hour), 4, "areas"), 47.6, -120.66, at8)
+	// 3 PM: a new forecast starting at 2 PM. The 8-9 AM hours come back from the store.
+	at3 := time.Date(2026, 11, 17, 15, 0, 0, 0, loc)
+	g := gridFrom(at3.Add(-time.Hour), 80, "")
+	addSkyHistory(context.Background(), g, 47.6, -120.66, at3)
+	ivs := g.Properties.SkyCover.intervals()
+	found := false
+	for _, iv := range ivs {
+		if iv.start.Equal(time.Date(2026, 11, 17, 8, 0, 0, 0, loc)) && iv.value == 4 {
+			found = true
+		}
+	}
+	if !found || g.pastFog.at(time.Date(2026, 11, 17, 8, 30, 0, 0, loc)) != 75 {
+		t.Errorf("history: sky %+v, fog %+v", ivs, g.pastFog)
+	}
+}

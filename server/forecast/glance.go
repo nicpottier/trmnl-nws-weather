@@ -238,6 +238,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		days[i].HeightPct = math.Round(float64(days[i].Hi-days[i].Lo)*1000/span) / 10
 	}
 
+	addSkyHistory(ctx, grid, opts.Lat, opts.Lon, now)
 	var chart *Chart
 	if grid != nil && len(days) > 0 {
 		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars, station, seen, back)

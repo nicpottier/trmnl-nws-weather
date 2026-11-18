@@ -54,8 +54,8 @@
   .wx__wind, .wx__marks { position: absolute; top: 0; left: 0; width: 100%; height: 25%; overflow: visible; }
   /* Layers, bottom up: sun, clouds, wind curve, gust label. */
   .wx__clouds { z-index: 2; }
-  .wx__precip { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
-  .wx__precip--fall { z-index: 1; }
+  /* Rain (streaks) and snow (dots) falling from the clouds, under them. */
+  .wx__precip { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
   .wx__gusts { z-index: 3; }
   /* Over a long clear, sunny stretch, a sun sits high in the open sky. */
   .wx__sun { position: absolute; top: 1px; z-index: 1; width: 36px; transform: translateX(-50%); }
@@ -178,23 +178,18 @@
         {% if chart.freeze_y and chart.freeze_y > 12 and chart.freeze_y < 88 %}<span class="label label--small" style="top: {{ chart.freeze_y }}%;">{{ chart.freeze_label }}</span>{% endif %}
       </div>
       <div class="wx__plot">
-        {% assign precip_style = "cloud" %}
         <div class="wx__bars">
           {% comment %} Four 6-hour bars per day, grouped so each day's bars sit evenly inside its day lines. {% endcomment %}
           {% for day in loc.days limit: chart.days %}
           {% assign first = forloop.index0 | times: 4 %}
-          <div class="wx__bars-day">{% if precip_style != "fall" %}{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}{% endif %}</div>
+          <div class="wx__bars-day">{% for bar in chart.bars offset: first limit: 4 %}<div{% if bar.kind != "" %} class="bg--{{ bar.shade }}"{% endif %} style="height: {{ bar.h }}%;"></div>{% endfor %}</div>
           {% endfor %}
         </div>
         <svg class="wx__wind wx__clouds" viewBox="0 0 1000 100" preserveAspectRatio="none"><defs><pattern id="wx-fog" patternUnits="userSpaceOnUse" width="1000" height="11"><rect width="1000" height="2.5" fill="#777777"/></pattern></defs>{% if chart.fog_path != "" %}<path d="{{ chart.fog_path }}" fill="url(#wx-fog)"/>{% endif %}{% if chart.cloud_path != "" %}<path d="{{ chart.cloud_path }}" fill="#dddddd"/><path d="{{ chart.cloud_edge }}" fill="none" stroke="#999999" stroke-width="1.5" vector-effect="non-scaling-stroke"/>{% endif %}</svg>
-        {% assign bw = 1000.0 | divided_by: chart.bars.size %}
-        {% capture clip_id %}wx-clip-{{ loc.location | downcase | replace: " ", "" | replace: ",", "" }}{% endcapture %}
-        <svg class="wx__precip{% if precip_style == "fall" %} wx__precip--fall{% endif %}" viewBox="0 0 1000 100" preserveAspectRatio="none"><defs>
+        {% if chart.rain_path != "" or chart.snow_path != "" %}<svg class="wx__precip" viewBox="0 0 1000 100" preserveAspectRatio="none"><defs>
           <pattern id="wx-rain" patternUnits="userSpaceOnUse" width="14" height="9"><path d="M9.5 1L6 6.5" stroke="#555555" stroke-width="1.8"/></pattern>
           <pattern id="wx-snow" patternUnits="userSpaceOnUse" width="14" height="8"><ellipse cx="4" cy="2" rx="1.9" ry="1.1" fill="#555555"/><ellipse cx="11" cy="6" rx="1.9" ry="1.1" fill="#555555"/></pattern>
-          {% if precip_style != "fall" %}<clipPath id="{{ clip_id }}"><path d="{{ chart.cloud_path }}" transform="scale(1 0.25)"/></clipPath>{% endif %}
-        </defs>
-        <g{% if precip_style != "fall" %} clip-path="url(#{{ clip_id }})"{% endif %}>{% for bar in chart.bars %}{% if bar.kind != "" %}{% assign bx = forloop.index0 | times: bw %}{% if precip_style == "fall" %}<rect x="{{ bx }}" y="{{ chart.bar_tops[forloop.index0] }}" width="{{ bw }}" height="18" fill="url(#wx-{{ bar.kind }})"/>{% else %}<rect x="{{ bx }}" y="0" width="{{ bw }}" height="25" fill="url(#wx-{{ bar.kind }})"/>{% endif %}{% endif %}{% endfor %}</g></svg>
+        </defs>{% if chart.rain_path != "" %}<path d="{{ chart.rain_path }}" fill="url(#wx-rain)"/>{% endif %}{% if chart.snow_path != "" %}<path d="{{ chart.snow_path }}" fill="url(#wx-snow)"/>{% endif %}</svg>{% endif %}
         {% if chart.wind_line != "" %}
         <svg class="wx__wind wx__gusts" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
         {% endif %}
