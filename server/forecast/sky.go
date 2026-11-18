@@ -1,6 +1,7 @@
 package forecast
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -182,9 +183,9 @@ const skyBandPct = 25.0
 const fallPct = 9.0
 
 // fillFalling draws rain and snow falling from the clouds: for each run of 6-hour blocks with the
-// same kind of precipitation, a shape whose top follows the clouds' lower edge (cloudBottom, in %
-// of the plot, by hour) and that hangs fallPct below it, tapering where the precipitation starts
-// and stops.
+// same kind of precipitation, the marks (see fallingMarks) inside an area whose top follows the
+// clouds' lower edge (cloudBottom, in % of the plot, by hour) and that hangs fallPct below it,
+// tapering where the precipitation starts and stops.
 func (c *Chart) fillFalling(start, end, now time.Time, cloudBottom func(time.Time) float64) {
 	c.RainPath, c.SnowPath = "", ""
 	span := float64(end.Sub(start))
@@ -222,19 +223,61 @@ func (c *Chart) fillFalling(start, end, now time.Time, cloudBottom func(time.Tim
 			}
 			xs, tops, bottoms = append(xs, xOf(t)), append(tops, top), append(bottoms, top+length)
 		}
-		// Top edge left to right, then the bottom edge back, both smoothed.
-		rx, rb := make([]float64, len(xs)), make([]float64, len(xs))
-		for i := range xs {
-			rx[len(xs)-1-i], rb[len(xs)-1-i] = xs[i], bottoms[i]
-		}
-		top := smoothPath(xs, tops)
-		bottom := smoothPath(rx, rb)
-		shape := top + "L" + strings.TrimPrefix(bottom, "M") + "Z"
+		marks := fallingMarks(kd, xs, tops, bottoms)
 		if kd == "snow" {
-			c.SnowPath += shape
+			c.SnowPath += marks
 		} else {
-			c.RainPath += shape
+			c.RainPath += marks
 		}
 		k = to
 	}
+}
+
+// fallingMarks lays rain dashes or snow dots in staggered columns, rows counted down from the
+// area's top (the clouds' edge) so they fall from it, and keeps only the marks that fit whole
+// inside the area between tops and bottoms (by x, in plot units): none is cut in half at an edge.
+// Columns sit at fixed x, so they line up from run to run. The result is SVG path data to stroke: a
+// dash per raindrop, a zero-length segment per snowflake (drawn as a round dot by its round cap).
+func fallingMarks(kind string, xs, tops, bottoms []float64) string {
+	if len(xs) < 2 {
+		return ""
+	}
+	at := func(vals []float64, x float64) float64 {
+		for i := 1; i < len(xs); i++ {
+			if x <= xs[i] {
+				f := (x - xs[i-1]) / (xs[i] - xs[i-1])
+				return vals[i-1] + f*(vals[i]-vals[i-1])
+			}
+		}
+		return vals[len(vals)-1]
+	}
+	inside := func(x, y float64) bool {
+		return x >= xs[0] && x <= xs[len(xs)-1] && y >= at(tops, x) && y <= at(bottoms, x)
+	}
+	// Column spacing, row spacing, gap below the clouds, how far each mark reaches (dx, dy) and how
+	// far its round ends stick out (pad), all in plot units.
+	colW, rowH, gap, dx, dy, pad := 7.0, 5.0, 1.0, -1.8, 3.0, 0.5
+	if kind == "snow" {
+		colW, rowH, gap, dx, dy, pad = 7.0, 4.0, 1.5, 0, 0, 1.0
+	}
+	var b strings.Builder
+	for k := math.Ceil(xs[0] / colW); k*colW <= xs[len(xs)-1]; k++ {
+		x0 := k * colW
+		x1 := x0 + dx
+		y := at(tops, x0) + gap + pad
+		if int(k)%2 != 0 {
+			y += rowH / 2
+		}
+		for ; y+dy+pad <= at(bottoms, x0); y += rowH {
+			if !inside(x0, y-pad) || !inside(x1, y+dy+pad) {
+				continue
+			}
+			if kind == "snow" {
+				fmt.Fprintf(&b, "M%s %sh0", fmtX(x0), fmtX(y))
+			} else {
+				fmt.Fprintf(&b, "M%s %sL%s %s", fmtX(x0), fmtX(y), fmtX(x1), fmtX(y+dy))
+			}
+		}
+	}
+	return b.String()
 }

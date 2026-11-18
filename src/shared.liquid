@@ -56,6 +56,11 @@
   .wx__clouds { z-index: 2; }
   /* Rain (streaks) and snow (dots) falling from the clouds, under them. */
   .wx__precip { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+  /* Rain dashes and snow dots, sized in screen pixels (non-scaling) so dots stay round. */
+  .wx__rain { stroke-width: 1.5px; }
+  .wx__snow { stroke-width: 3px; }
+  .screen--lg .wx__rain { stroke-width: 2px; }
+  .screen--lg .wx__snow { stroke-width: 4.5px; }
   .wx__gusts { z-index: 3; }
   /* Over a long clear, sunny stretch, a sun sits high in the open sky. */
   .wx__sun { position: absolute; top: 1px; z-index: 1; width: 36px; transform: translateX(-50%); }
@@ -186,10 +191,7 @@
           {% endfor %}
         </div>
         <svg class="wx__wind wx__clouds" viewBox="0 0 1000 100" preserveAspectRatio="none"><defs><pattern id="wx-fog" patternUnits="userSpaceOnUse" width="1000" height="11"><rect width="1000" height="2.5" fill="#777777"/></pattern></defs>{% if chart.fog_path != "" %}<path d="{{ chart.fog_path }}" fill="url(#wx-fog)"/>{% endif %}{% if chart.cloud_path != "" %}<path d="{{ chart.cloud_path }}" fill="#dddddd"/><path d="{{ chart.cloud_edge }}" fill="none" stroke="#999999" stroke-width="1.5" vector-effect="non-scaling-stroke"/>{% endif %}</svg>
-        {% if chart.rain_path != "" or chart.snow_path != "" %}<svg class="wx__precip" viewBox="0 0 1000 100" preserveAspectRatio="none"><defs>
-          <pattern id="wx-rain" patternUnits="userSpaceOnUse" width="14" height="9"><path d="M9.5 1L6 6.5" stroke="#555555" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/></pattern>
-          <pattern id="wx-snow" patternUnits="userSpaceOnUse" width="14" height="8"><path d="M4 2h0M11 6h0" stroke="#555555" stroke-width="4.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/></pattern>
-        </defs>{% if chart.rain_path != "" %}<path d="{{ chart.rain_path }}" fill="url(#wx-rain)"/>{% endif %}{% if chart.snow_path != "" %}<path d="{{ chart.snow_path }}" fill="url(#wx-snow)"/>{% endif %}</svg>{% endif %}
+        {% if chart.rain_path != "" or chart.snow_path != "" %}<svg class="wx__precip" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="#555555" stroke-linecap="round">{% if chart.rain_path != "" %}<path class="wx__rain" d="{{ chart.rain_path }}" vector-effect="non-scaling-stroke"/>{% endif %}{% if chart.snow_path != "" %}<path class="wx__snow" d="{{ chart.snow_path }}" vector-effect="non-scaling-stroke"/>{% endif %}</svg>{% endif %}
         {% if chart.wind_line != "" %}
         <svg class="wx__wind wx__gusts" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
         {% endif %}
