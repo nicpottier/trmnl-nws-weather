@@ -129,6 +129,7 @@ type Chart struct {
 	Gusts     []Storm   `json:"gusts"`      // peak gust per windy spell, centered under it
 	Marks     []Mark    `json:"marks"`      // suns and gust labels for the top band, left to right
 	Suns      []float64 `json:"suns"`       // where a sun peeks out over a clear, sunny stretch: x, 0-100 %
+	BarTops   []float64 `json:"bar_tops"`   // per 6 hours: where its cloud's bottom edge is, 0-100 % of the plot (0 with no cloud)
 	CloudPath string    `json:"cloud_path"` // sky cover alone, without fog (mockup)
 	CloudEdge string    `json:"cloud_edge"`
 	FogPath   string    `json:"fog_path"` // fog alone, as cover (mockup)

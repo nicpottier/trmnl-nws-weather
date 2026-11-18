@@ -194,7 +194,7 @@
           <pattern id="wx-snow" patternUnits="userSpaceOnUse" width="14" height="8"><ellipse cx="4" cy="2" rx="1.9" ry="1.1" fill="#555555"/><ellipse cx="11" cy="6" rx="1.9" ry="1.1" fill="#555555"/></pattern>
           {% if precip_style != "fall" %}<clipPath id="{{ clip_id }}"><path d="{{ chart.cloud_path }}" transform="scale(1 0.25)"/></clipPath>{% endif %}
         </defs>
-        <g{% if precip_style != "fall" %} clip-path="url(#{{ clip_id }})"{% endif %}>{% for bar in chart.bars %}{% if bar.kind != "" %}{% assign bx = forloop.index0 | times: bw %}<rect x="{{ bx }}" y="0" width="{{ bw }}" height="{% if precip_style == "fall" %}{{ bar.h }}{% else %}25{% endif %}" fill="url(#wx-{{ bar.kind }})"/>{% endif %}{% endfor %}</g></svg>
+        <g{% if precip_style != "fall" %} clip-path="url(#{{ clip_id }})"{% endif %}>{% for bar in chart.bars %}{% if bar.kind != "" %}{% assign bx = forloop.index0 | times: bw %}{% if precip_style == "fall" %}<rect x="{{ bx }}" y="{{ chart.bar_tops[forloop.index0] }}" width="{{ bw }}" height="18" fill="url(#wx-{{ bar.kind }})"/>{% else %}<rect x="{{ bx }}" y="0" width="{{ bw }}" height="25" fill="url(#wx-{{ bar.kind }})"/>{% endif %}{% endif %}{% endfor %}</g></svg>
         {% if chart.wind_line != "" %}
         <svg class="wx__wind wx__gusts" viewBox="0 0 1000 100" preserveAspectRatio="none" fill="none" stroke="currentColor"><path d="{{ chart.wind_line }}" stroke-width="3" stroke-dasharray="6 4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
         {% endif %}

@@ -95,6 +95,19 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 		return path, edge
 	}
 	c.CloudPath, c.CloudEdge = shape(sky)
+
+	// Where each 6-hour block's cloud ends, so rain and snow can fall from it: the cloud's depth at
+	// the block's middle (the band is the plot's top quarter). Blocks already past have no clouds.
+	c.BarTops = make([]float64, len(c.Bars))
+	for k := range c.BarTops {
+		mid := start.Add(time.Duration(k*barHours)*time.Hour + barHours*time.Hour/2).Truncate(time.Hour)
+		if mid.Before(now) {
+			continue
+		}
+		if _, ok := sky[mid]; ok {
+			c.BarTops[k] = math.Round(cloudDepth(smoothed(sky, mid))*0.25*10) / 10
+		}
+	}
 	c.FogPath, c.FogEdge = shape(fog)
 }
 
