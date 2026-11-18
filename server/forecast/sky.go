@@ -234,8 +234,8 @@ func (c *Chart) fillFalling(start, end, now time.Time, cloudBottom func(time.Tim
 }
 
 // fallingMarks lays rain dashes or snow dots on a fixed grid, like a pattern fill (so they line
-// up across the chart), and keeps the whole marks that start inside the area between tops and
-// bottoms (by x, in plot units) instead of clipping them: none is cut in half at an edge. The result is SVG path data to
+// up across the chart). The clouds, drawn over them, may hide a mark's top, but none is cut off at
+// the area's bottom or sides (tops and bottoms are by x, in plot units). The result is SVG path data to
 // stroke: a dash per raindrop, a zero-length segment per snowflake (a round dot by its round cap).
 func fallingMarks(kind string, xs, tops, bottoms []float64) string {
 	if len(xs) < 2 {
@@ -251,12 +251,11 @@ func fallingMarks(kind string, xs, tops, bottoms []float64) string {
 		return vals[len(vals)-1]
 	}
 	clear := func(x, y float64) bool { return x >= xs[0] && x <= xs[len(xs)-1] && y >= at(tops, x) }
-	inside := func(x, y float64) bool { return clear(x, y) && y <= at(bottoms, x) }
-	// One grid cell's marks, each from (x, y) to (x+dx, y+dy); pad keeps their round ends inside.
+	// One grid cell's marks, each from (x, y) to (x+dx, y+dy); pad keeps a sliver of each in view.
 	type mark struct{ x, y, dx, dy float64 }
 	cellW, cellH, pad, cell := 14.0, 9.0, 0.5, []mark{{9, 1, -2, 3.5}, {2, 5.5, -2, 3.5}}
 	if kind == "snow" {
-		cellW, cellH, pad, cell = 14.0, 8.0, 1.0, []mark{{4, 2, 0, 0}, {11, 6, 0, 0}}
+		cellW, cellH, pad, cell = 14.0, 8.0, -0.2, []mark{{4, 2, 0, 0}, {11, 6, 0, 0}}
 	}
 	top, bottom := tops[0], bottoms[0]
 	for i := range xs {
@@ -264,12 +263,13 @@ func fallingMarks(kind string, xs, tops, bottoms []float64) string {
 	}
 	var b strings.Builder
 	for cx := math.Floor(xs[0]/cellW) * cellW; cx <= xs[len(xs)-1]; cx += cellW {
-		for cy := math.Floor(top/cellH) * cellH; cy <= bottom; cy += cellH {
+		for cy := math.Floor(top/cellH-1) * cellH; cy <= bottom; cy += cellH {
 			for _, m := range cell {
 				x0, y0, x1, y1 := cx+m.x, cy+m.y, cx+m.x+m.dx, cy+m.y+m.dy
-				// Whole marks only: clear of the clouds at the top, and starting inside the area (the
-				// bottom edge isn't drawn, so a mark may finish a little past it).
-				if !clear(x0, y0-pad) || !clear(x1, y1-pad) || !inside(x0, y0) {
+				// Marks reaching below the clouds (which hide their tops, as if falling out of them)
+				// and starting above the area's bottom; the bottom edge isn't drawn, so a mark may
+				// finish a little past it rather than being cut there.
+				if !clear(x1, y1-pad) || x0 < xs[0] || x0 > xs[len(xs)-1] || y0 > at(bottoms, x0) {
 					continue
 				}
 				if kind == "snow" {
