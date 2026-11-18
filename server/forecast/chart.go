@@ -218,7 +218,7 @@ type Bar struct {
 	Observed bool `json:"observed"`
 }
 
-var barShades = map[string]string{"snow": "gray-35", "rain": "gray-55"}
+var barShades = map[string]string{"snow": "gray-55", "rain": "gray-55"}
 
 // Bar scales, per 6 hours. They never change, so the bars read the same on every screen and
 // every day. The tallest bar is maxBarPct of the chart, leaving the top for the temperature line
