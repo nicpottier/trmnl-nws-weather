@@ -233,11 +233,10 @@ func (c *Chart) fillFalling(start, end, now time.Time, cloudBottom func(time.Tim
 	}
 }
 
-// fallingMarks lays rain dashes or snow dots in staggered columns, rows counted down from the
-// area's top (the clouds' edge) so they fall from it, and keeps only the marks that fit whole
-// inside the area between tops and bottoms (by x, in plot units): none is cut in half at an edge.
-// Columns sit at fixed x, so they line up from run to run. The result is SVG path data to stroke: a
-// dash per raindrop, a zero-length segment per snowflake (drawn as a round dot by its round cap).
+// fallingMarks lays rain dashes or snow dots on a fixed grid, like a pattern fill (so they line
+// up across the chart), and keeps the whole marks that start inside the area between tops and
+// bottoms (by x, in plot units) instead of clipping them: none is cut in half at an edge. The result is SVG path data to
+// stroke: a dash per raindrop, a zero-length segment per snowflake (a round dot by its round cap).
 func fallingMarks(kind string, xs, tops, bottoms []float64) string {
 	if len(xs) < 2 {
 		return ""
@@ -251,31 +250,33 @@ func fallingMarks(kind string, xs, tops, bottoms []float64) string {
 		}
 		return vals[len(vals)-1]
 	}
-	inside := func(x, y float64) bool {
-		return x >= xs[0] && x <= xs[len(xs)-1] && y >= at(tops, x) && y <= at(bottoms, x)
-	}
-	// Column spacing, row spacing, gap below the clouds, how far each mark reaches (dx, dy) and how
-	// far its round ends stick out (pad), all in plot units.
-	colW, rowH, gap, dx, dy, pad := 7.0, 5.0, 1.0, -1.8, 3.0, 0.5
+	clear := func(x, y float64) bool { return x >= xs[0] && x <= xs[len(xs)-1] && y >= at(tops, x) }
+	inside := func(x, y float64) bool { return clear(x, y) && y <= at(bottoms, x) }
+	// One grid cell's marks, each from (x, y) to (x+dx, y+dy); pad keeps their round ends inside.
+	type mark struct{ x, y, dx, dy float64 }
+	cellW, cellH, pad, cell := 14.0, 9.0, 0.5, []mark{{9, 1, -2, 3.5}, {2, 5.5, -2, 3.5}}
 	if kind == "snow" {
-		colW, rowH, gap, dx, dy, pad = 7.0, 4.0, 1.5, 0, 0, 1.0
+		cellW, cellH, pad, cell = 14.0, 8.0, 1.0, []mark{{4, 2, 0, 0}, {11, 6, 0, 0}}
+	}
+	top, bottom := tops[0], bottoms[0]
+	for i := range xs {
+		top, bottom = math.Min(top, tops[i]), math.Max(bottom, bottoms[i])
 	}
 	var b strings.Builder
-	for k := math.Ceil(xs[0] / colW); k*colW <= xs[len(xs)-1]; k++ {
-		x0 := k * colW
-		x1 := x0 + dx
-		y := at(tops, x0) + gap + pad
-		if int(k)%2 != 0 {
-			y += rowH / 2
-		}
-		for ; y+dy+pad <= at(bottoms, x0); y += rowH {
-			if !inside(x0, y-pad) || !inside(x1, y+dy+pad) {
-				continue
-			}
-			if kind == "snow" {
-				fmt.Fprintf(&b, "M%s %sh0", fmtX(x0), fmtX(y))
-			} else {
-				fmt.Fprintf(&b, "M%s %sL%s %s", fmtX(x0), fmtX(y), fmtX(x1), fmtX(y+dy))
+	for cx := math.Floor(xs[0]/cellW) * cellW; cx <= xs[len(xs)-1]; cx += cellW {
+		for cy := math.Floor(top/cellH) * cellH; cy <= bottom; cy += cellH {
+			for _, m := range cell {
+				x0, y0, x1, y1 := cx+m.x, cy+m.y, cx+m.x+m.dx, cy+m.y+m.dy
+				// Whole marks only: clear of the clouds at the top, and starting inside the area (the
+				// bottom edge isn't drawn, so a mark may finish a little past it).
+				if !clear(x0, y0-pad) || !clear(x1, y1-pad) || !inside(x0, y0) {
+					continue
+				}
+				if kind == "snow" {
+					fmt.Fprintf(&b, "M%s %sh0", fmtX(x0), fmtX(y0))
+				} else {
+					fmt.Fprintf(&b, "M%s %sL%s %s", fmtX(x0), fmtX(y0), fmtX(x1), fmtX(y1))
+				}
 			}
 		}
 	}
