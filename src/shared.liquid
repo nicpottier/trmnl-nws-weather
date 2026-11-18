@@ -19,6 +19,12 @@
   .screen--lg .wx__hilo { padding: 3px 0; }
   .wx__fresh { display: flex; align-items: center; justify-content: center; gap: 4px; }
   .screen--lg .wx__fresh svg { width: 22px; height: 22px; }
+  /* A weather alert: boxed, bold and with a warning sign, so it stands out without reversed text. */
+  .wx__alert { display: flex; align-items: center; justify-content: center; gap: 4px; align-self: center; max-width: 100%; box-sizing: border-box; padding: 2px 6px; border: 2px solid #000; border-radius: 6px; }
+  .wx__alert .label { font-weight: 700; text-align: left; }
+  .wx__alert svg { flex: none; stroke-width: 2.5; }
+  .screen--lg .wx__alert { gap: 6px; padding: 3px 10px; border-width: 3px; border-radius: 8px; }
+  .screen--lg .wx__alert svg { width: 24px; height: 24px; }
   /* "Updated 8:05 AM" in the bottom-left corner of the last location's column. */
   .wx__now--updated .wx__left { padding-bottom: 16px; box-sizing: border-box; }
   .screen--lg .wx__now--updated .wx__left { padding-bottom: 22px; }
@@ -107,6 +113,8 @@
     <path d="M6.5 14.5h11a4 4 0 0 0 .4-8A6 6 0 0 0 6.3 7.5a3.5 3.5 0 0 0 .2 7z"/><path d="M3 17.5h18M5 21h14"/>
   {% when 'snowflake' %}
     <path d="M12 2v20M3.3 7l17.4 10M3.3 17l17.4-10M9.5 3.5 12 6l2.5-2.5M9.5 20.5 12 18l2.5 2.5M3.8 10.4l3.4-.9-.9-3.4M20.2 13.6l-3.4.9.9 3.4M3.8 13.6l3.4.9-.9 3.4M20.2 10.4l-3.4-.9.9-3.4"/>
+  {% when 'alert' %}
+    <path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>
   {% when 'wind' %}
     <path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3M3 12h7"/>
   {% else %}
@@ -142,7 +150,7 @@
     {% endif %}
   {% unless compact %}
   {% assign today = loc.days[loc.today_index] %}
-  {% capture alert %}{% if loc.alerts.size > 0 %}<span class="label label--small label--inverted" data-clamp="1">{{ loc.alerts.first.event }}</span>{% endif %}{% endcapture %}
+  {% capture alert %}{% if loc.alerts.size > 0 %}<div class="wx__alert">{% render "wx_icon", name: "alert", size: 16 %}<span class="label label--small lg:label--base" data-clamp="2">{{ loc.alerts.first.event }}</span></div>{% endif %}{% endcapture %}
     <div class="wx__left">
       <div class="wx__ic wx__ic--xl">{% render "wx_icon", name: loc.now.icon, size: 64 %}</div>
       <span class="title title--small lg:title--base" data-clamp="1">{{ loc.location }}</span>
