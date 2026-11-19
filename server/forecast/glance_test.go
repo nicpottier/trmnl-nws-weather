@@ -347,7 +347,7 @@ func TestBuildChartRainAndSnow(t *testing.T) {
 	if c.BarKind != "auto" || len(c.Bars) != 12 {
 		t.Fatalf("chart = %+v", c)
 	}
-	want := map[int]Bar{3: {62.5, "rain", "gray-55", false}, 6: {12.5, "snow", "gray-55", false}, 7: {12.5, "snow", "gray-55", false}}
+	want := map[int]Bar{3: {62.5, "rain", "gray-55", false}, 6: {12.5, "snow", "gray-35", false}, 7: {12.5, "snow", "gray-35", false}}
 	for i, b := range c.Bars {
 		if b != want[i] {
 			t.Errorf("bar %d = %+v, want %+v", i, b, want[i])
