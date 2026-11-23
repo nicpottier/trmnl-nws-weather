@@ -181,7 +181,7 @@ func TestAddCWOPRain(t *testing.T) {
 	c := newNWSClient()
 	run := func() []stationSeries {
 		series := []stationSeries{{ID: "LVN11"}, {ID: "E5752"}, {ID: "F4618"}, {ID: "C1234"}}
-		if err := c.addCWOPRain(context.Background(), series, loc, report.Add(5*time.Minute)); err != nil {
+		if err := c.addCWOPRain(context.Background(), series, report.Add(5*time.Minute)); err != nil {
 			t.Fatal(err)
 		}
 		return series

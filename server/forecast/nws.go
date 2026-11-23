@@ -100,7 +100,7 @@ type nwsClient struct {
 }
 
 func newNWSClient() *nwsClient {
-	return &nwsClient{http: &http.Client{Timeout: 8 * time.Second}, points: map[string]*Points{}, stations: map[string]cachedStations{}, snotel: map[string]cachedSnotel{}}
+	return &nwsClient{http: &http.Client{Timeout: requestTimeout}, points: map[string]*Points{}, stations: map[string]cachedStations{}, snotel: map[string]cachedSnotel{}}
 }
 
 func (c *nwsClient) get(ctx context.Context, url string, v any) error {
@@ -118,22 +118,27 @@ func (c *nwsClient) getAs(ctx context.Context, url, accept string, v any) error 
 
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 && (ctx.Err() != nil || timeLeft(ctx) < minRetryTime) {
+			break // no time for another try
+		}
+		retry := false
 		resp, err := c.http.Do(req)
 		if err != nil {
-			lastErr = err
-			continue
+			lastErr, retry = err, ctx.Err() == nil // a dropped connection or a timed-out try, not our deadline
+		} else {
+			func() {
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					// NWS intermittently returns 500s for gridpoint forecasts; one retry usually clears it.
+					// A 4xx won't change on a retry.
+					lastErr, retry = fmt.Errorf("GET %s: %s", url, resp.Status), resp.StatusCode >= 500
+					return
+				}
+				lastErr = json.NewDecoder(resp.Body).Decode(v)
+			}()
 		}
-		func() {
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				// NWS intermittently returns 500s for gridpoint forecasts; one retry usually clears it.
-				lastErr = fmt.Errorf("GET %s: %s", url, resp.Status)
-				return
-			}
-			lastErr = json.NewDecoder(resp.Body).Decode(v)
-		}()
-		if lastErr == nil {
-			return nil
+		if lastErr == nil || !retry {
+			return lastErr
 		}
 	}
 	return lastErr
@@ -194,17 +199,19 @@ const (
 	maxElevationGapM = 300.0
 )
 
-// CurrentObservation finds the freshest nearby measured temperature.
+// currentObservation picks the freshest nearby measured temperature, for when no nearby station's
+// recent readings have one.
 //
 // api.weather.gov's observation feed often lags or drops the cooperative stations closest to a
 // point (Leavenworth's LVN11 can be days behind there), while forecast.weather.gov's own
 // point-forecast JSON — the source of the "current conditions" box on its MapClick page —
-// carries the latest reading. So try that first, then the gridpoint's stations in distance order.
+// carries the latest reading. So use that (mapClick, fetched alongside everything else) when it's
+// fresh, then the gridpoint's stations in distance order.
 //
 // pointElevM is the forecast point's elevation in meters, or NaN if unknown.
-func (c *nwsClient) CurrentObservation(ctx context.Context, lat, lon float64, p *Points, pointElevM float64, loc *time.Location, now time.Time) (*Observation, error) {
-	if obs, err := c.mapClickObservation(ctx, lat, lon, loc, now); err == nil && now.Sub(obs.ObservedAt) <= maxObservationAge {
-		return obs, nil
+func (c *nwsClient) currentObservation(ctx context.Context, mapClick *Observation, mapClickErr error, p *Points, pointElevM float64, now time.Time) (*Observation, error) {
+	if mapClickErr == nil && mapClick != nil && now.Sub(mapClick.ObservedAt) <= maxObservationAge {
+		return mapClick, nil
 	}
 	return c.stationObservation(ctx, p, pointElevM, now)
 }

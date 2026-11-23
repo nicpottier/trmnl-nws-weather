@@ -63,7 +63,7 @@ type aprsResponse struct {
 
 // addCWOPRain gives the CWOP stations among `series` their rain: it fetches their latest reports,
 // saves them, and fills each station's Precip from its saved history.
-func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, loc *time.Location, now time.Time) error {
+func (c *nwsClient) addCWOPRain(ctx context.Context, series []stationSeries, now time.Time) error {
 	if aprsKey == "" || stateStore == nil {
 		return nil
 	}

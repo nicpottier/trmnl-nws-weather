@@ -79,7 +79,10 @@ type Options struct {
 }
 
 func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Time) (*Glance, error) {
+	t := newTimings()
+	pointsStart := time.Now()
 	points, err := nws.Points(ctx, opts.Lat, opts.Lon)
+	t.add("points", time.Since(pointsStart))
 	if err != nil {
 		return nil, fmt.Errorf("looking up NWS grid: %w", err)
 	}
@@ -93,7 +96,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		periodsErr, hrsErr error
 		stations, snotel   []stationSeries
 		stationsErr        error
-		snotelErr          error
+		snotelErr, cwopErr error
 	)
 	// Station readings since yesterday's local midnight (plus an hour, for the first hourly
 	// average), and at least the 48 hours the fresh-snow total covers.
@@ -102,20 +105,38 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		l := now.In(tz)
 		since = minTime(since, time.Date(l.Year(), l.Month(), l.Day()-1, 0, 0, 0, 0, tz).Add(-time.Hour))
 	}
-	wg.Add(6)
-	go func() { defer wg.Done(); periods, periodsErr = nws.Forecast(ctx, pp.Forecast, opts.Units) }()
-	go func() { defer wg.Done(); hourly, hrsErr = nws.Forecast(ctx, pp.ForecastHourly, opts.Units) }()
-	go func() { defer wg.Done(); alerts, _ = nws.Alerts(ctx, opts.Lat, opts.Lon) }()
-	go func() { defer wg.Done(); grid, _ = nws.GridData(ctx, pp.ForecastGridData) }() // chart is optional
-	go func() {
-		defer wg.Done()
-		stations, stationsErr = nws.stationSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since)
-	}()
-	go func() {
-		defer wg.Done()
-		snotel, snotelErr = nws.snotelSeriesNear(ctx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since, now)
-	}()
+	// Optional sources (alerts, stations, SNOTEL, home-station rain, the fallback current reading)
+	// get a shorter deadline than the forecast itself, so a slow one is left out ("Missing: ...")
+	// instead of holding up the whole screen.
+	optCtx, cancelOpt := context.WithDeadline(ctx, t.start.Add(optionalBudget))
+	defer cancelOpt()
+	loc, locErr := time.LoadLocation(pp.TimeZone)
+	var mapClick *Observation
+	var mapClickErr error
+	wg.Add(7)
+	go t.run(&wg, "forecast", func() { periods, periodsErr = nws.Forecast(ctx, pp.Forecast, opts.Units) })
+	go t.run(&wg, "hourly", func() { hourly, hrsErr = nws.Forecast(ctx, pp.ForecastHourly, opts.Units) })
+	go t.run(&wg, "alerts", func() { alerts, _ = nws.Alerts(optCtx, opts.Lat, opts.Lon) })
+	go t.run(&wg, "grid", func() {
+		grid, _ = nws.GridData(ctx, pp.ForecastGridData) // chart is optional
+		addSkyHistory(ctx, grid, opts.Lat, opts.Lon, now)
+	})
+	go t.run(&wg, "stations", func() {
+		stations, stationsErr = nws.stationSeriesNear(optCtx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since)
+		cwopErr = nws.addCWOPRain(optCtx, stations, now) // rain from home weather stations (aprs.go)
+	})
+	go t.run(&wg, "snotel", func() {
+		snotel, snotelErr = nws.snotelSeriesNear(optCtx, opts.Lat, opts.Lon, pp.RelativeLocation.Properties.State, since, now)
+	})
+	// The forecast page's current reading, in case no station has a fresh one: asked for now, so
+	// it's on hand without a second round trip.
+	go t.run(&wg, "mapclick", func() {
+		if locErr == nil {
+			mapClick, mapClickErr = nws.mapClickObservation(optCtx, opts.Lat, opts.Lon, loc, now)
+		}
+	})
 	wg.Wait()
+	defer func() { log.Printf("timing %s: %s", opts.Name, t) }()
 
 	if periodsErr != nil {
 		return nil, fmt.Errorf("fetching forecast: %w", periodsErr)
@@ -130,8 +151,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		alerts = []Alert{}
 	}
 
-	loc, err := time.LoadLocation(pp.TimeZone)
-	if err != nil {
+	if locErr != nil {
 		loc = periods[0].StartTime.Location()
 	}
 	localNow := now.In(loc)
@@ -144,8 +164,8 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		log.Printf("snotel for %.4f,%.4f: %v", opts.Lat, opts.Lon, snotelErr)
 		issues = append(issues, "SNOTEL")
 	}
-	if err := nws.addCWOPRain(ctx, stations, loc, now); err != nil { // rain from home weather stations (aprs.go)
-		log.Printf("cwop rain for %.4f,%.4f: %v", opts.Lat, opts.Lon, err)
+	if cwopErr != nil {
+		log.Printf("cwop rain for %.4f,%.4f: %v", opts.Lat, opts.Lon, cwopErr)
 		issues = append(issues, "home stations")
 	}
 
@@ -172,7 +192,7 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 	if current != nil {
 		obs = current.latest()
 	} else {
-		obs, err = nws.CurrentObservation(ctx, opts.Lat, opts.Lon, points, pointElevM, loc, now)
+		obs, err = nws.currentObservation(optCtx, mapClick, mapClickErr, points, pointElevM, now)
 	}
 	if err == nil && obs != nil {
 		nowTemp, source, observedAt = fToUnits(obs.TempF, opts.Units), obs.Station, obs.ObservedAt.In(loc).Format("3:04 PM")
@@ -238,7 +258,6 @@ func BuildGlance(ctx context.Context, nws *nwsClient, opts Options, now time.Tim
 		days[i].HeightPct = math.Round(float64(days[i].Hi-days[i].Lo)*1000/span) / 10
 	}
 
-	addSkyHistory(ctx, grid, opts.Lat, opts.Lon, now)
 	var chart *Chart
 	if grid != nil && len(days) > 0 {
 		chart = buildChart(grid, days, loc, now, opts.Units, opts.Bars, station, seen, back)

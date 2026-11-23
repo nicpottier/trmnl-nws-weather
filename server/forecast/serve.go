@@ -115,6 +115,8 @@ func Serve(ctx context.Context, q url.Values) (int, []byte) {
 		return errorResponse(err)
 	}
 	now := time.Now()
+	ctx, cancel := context.WithTimeout(ctx, requestBudget)
+	defer cancel()
 
 	if !multi {
 		g, err := BuildGlance(ctx, nws, opts[0], now)
