@@ -66,7 +66,18 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 	for _, h := range hours[first:] {
 		c.skyHours = append(c.skyHours, skyHour{h, smoothed(both, h)})
 	}
-	shape := func(cover map[time.Time]float64) (path, edge string) {
+	// Fog gives way to rain and snow: none is drawn within fogClearHours of a wet 6-hour block, so
+	// the two never overlap (the falling marks already say it's gray and wet).
+	wetNear := func(h time.Time) bool {
+		for d := -fogClearHours; d <= fogClearHours; d++ {
+			k := int(math.Floor(h.Add(time.Duration(d)*time.Hour).Sub(start).Hours())) / barHours
+			if k >= 0 && k < len(c.Bars) && c.Bars[k].Kind != "" {
+				return true
+			}
+		}
+		return false
+	}
+	shape := func(cover map[time.Time]float64, hide func(time.Time) bool) (path, edge string) {
 		xs, ys := []float64{}, []float64{}
 		// Past hours too: they come from the forecast saved as each hour arrived (skyhistory.go).
 		for i := 0; i < len(hours); i += skyStepHours {
@@ -74,7 +85,11 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 			if i == 0 {
 				x = xOf(hours[i])
 			}
-			xs, ys = append(xs, x), append(ys, cloudDepth(smoothed(cover, hours[i])))
+			y := cloudDepth(smoothed(cover, hours[i]))
+			if hide != nil && hide(hours[i]) {
+				y = 0
+			}
+			xs, ys = append(xs, x), append(ys, y)
 		}
 		// One shape per covered stretch, each easing in from and out to the clear points beside it, so
 		// clear sky is left empty (no edge drawn along the top).
@@ -96,8 +111,8 @@ func (c *Chart) fillSky(grid *GridData, start, end, now time.Time) {
 		}
 		return path, edge
 	}
-	c.CloudPath, c.CloudEdge = shape(sky)
-	c.FogPath, c.FogEdge = shape(fog)
+	c.CloudPath, c.CloudEdge = shape(sky, nil)
+	c.FogPath, c.FogEdge = shape(fog, wetNear)
 
 	c.fillFalling(start, end, now, func(h time.Time) float64 {
 		if _, ok := sky[h]; !ok { // no clouds known (before the saved history): fall from the top
@@ -160,6 +175,9 @@ func (f fogIntervals) at(t time.Time) float64 {
 	}
 	return 0
 }
+
+// fogClearHours is how near (in hours) to rain or snow fog is left out.
+const fogClearHours = 3
 
 // clearSkyCover is the cloud cover (%) below which the sky counts as clear and nothing is drawn.
 const clearSkyCover = 25.0

@@ -1104,4 +1104,15 @@ func TestFogCountsAsCover(t *testing.T) {
 	if at7 < clearSkyCover || atNoon >= clearSkyCover {
 		t.Errorf("cover at 7 AM %.0f, noon %.0f", at7, atNoon)
 	}
+
+	// Rain wins: with rain in both of the fog's 6-hour blocks, no fog is drawn, though the sun still
+	// counts it.
+	c = &Chart{Bars: []Bar{{Height: 10, Kind: "rain"}, {Height: 10, Kind: "rain"}, {}, {}, {}, {}, {}, {}}}
+	c.fillSky(&grid, start, start.AddDate(0, 0, 2), start.Add(7*time.Hour))
+	if c.FogPath != "" || c.RainPath == "" {
+		t.Errorf("with rain: fog %q, rain %q", c.FogPath, c.RainPath)
+	}
+	if len(c.skyHours) == 0 || c.skyHours[0].cover < clearSkyCover {
+		t.Errorf("with rain: sky hours %v", c.skyHours)
+	}
 }
