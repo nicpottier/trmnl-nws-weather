@@ -311,3 +311,41 @@ func TestSkyHistory(t *testing.T) {
 		t.Errorf("history: sky %+v, fog %+v", ivs, g.pastFog)
 	}
 }
+
+func TestRainSpikesAndFaults(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	at := func(d, h, m int) int64 { return time.Date(2026, 11, d, h, m, 0, 0, loc).Unix() }
+	total := func(samples []aprsSample, from, to int64) float64 {
+		sum := 0.0
+		for _, r := range rainFromSamples(samples) {
+			if r.T.Unix() > from && r.T.Unix() <= to {
+				sum += r.V
+			}
+		}
+		return math.Round(sum*25.4*100) / 100
+	}
+
+	// A bad report (25 mm since midnight) between two that agree: no rain from it, and its
+	// correction isn't taken for a midnight reset.
+	spike := []aprsSample{
+		{T: at(24, 6, 0), Mn: 1.0}, {T: at(24, 6, 10), Mn: 1.2},
+		{T: at(24, 6, 20), Mn: 25.6},
+		{T: at(24, 6, 30), Mn: 1.4}, {T: at(24, 6, 40), Mn: 1.6},
+	}
+	if mm := total(spike, at(24, 6, 0), at(24, 7, 0)); mm != 0.6 {
+		t.Errorf("with a spike = %v mm, want 0.6", mm)
+	}
+
+	// A real reset still counts: the total falls to well below where it was.
+	reset := []aprsSample{{T: at(24, 15, 30), Mn: 8.0}, {T: at(24, 15, 50), Mn: 9.0}, {T: at(24, 16, 10), Mn: 0.5, R1: 1.5}}
+	if mm := total(reset, at(24, 15, 30), at(24, 17, 0)); mm != 2.5 {
+		t.Errorf("across a reset = %v mm, want 2.5", mm)
+	}
+
+	// 40 mm in 20 minutes (and a "reset" adding 60 mm) is a faulty gauge, not rain.
+	fault := []aprsSample{{T: at(24, 8, 0), Mn: 1.0}, {T: at(24, 8, 20), Mn: 41.0}, {T: at(24, 9, 0), Mn: 42.0},
+		{T: at(24, 9, 20), Mn: 0.0}, {T: at(24, 9, 40), Mn: 60.0}}
+	if mm := total(fault, at(24, 8, 0), at(24, 10, 0)); mm != 1.0 {
+		t.Errorf("with a faulty gauge = %v mm, want 1.0", mm)
+	}
+}

@@ -28,6 +28,9 @@ var (
 	aprsKey    = os.Getenv("APRS_FI_KEY")
 	aprsKeep   = 72 * time.Hour // history kept per station
 	aprsMaxGap = 3 * time.Hour  // longer gaps between saved reports are left unknown
+	// maxRainRate (inches an hour) is more than Leavenworth ever sees; a station claiming more,
+	// over any stretch, has a faulty gauge or report.
+	maxRainRate = 0.75
 )
 
 // cwopID matches api.weather.gov's IDs for CWOP stations: "E5752" is callsign EW5752.
@@ -164,7 +167,12 @@ func parseAPRS(t, mn, r1, r24 string) (aprsSample, bool) {
 //     so the day the history starts (and a station that's just come back) isn't blank.
 func rainFromSamples(samples []aprsSample) []reading {
 	sort.Slice(samples, func(i, j int) bool { return samples[i].T < samples[j].T })
+	samples = dropRainSpikes(samples)
 	out := []reading{}
+	// plausible is whether mm of rain in a stretch of the given length could be real.
+	plausible := func(mm float64, gap time.Duration) bool {
+		return mm/25.4 <= maxRainRate*math.Max(gap.Hours(), 1)
+	}
 	spread := func(mm float64, from, to time.Time) {
 		hours := int(math.Ceil(to.Sub(from).Hours()))
 		for h := hours - 1; h >= 0; h-- {
@@ -191,11 +199,17 @@ func rainFromSamples(samples []aprsSample) []reading {
 			if gap <= time.Hour {
 				mm += math.Max(0, b.R1-b.Mn)
 			}
-			out = append(out, reading{tb, mm / 25.4})
+			if plausible(mm, gap) {
+				out = append(out, reading{tb, mm / 25.4})
+			} else {
+				log.Printf("cwop: ignoring a %.1f mm reset at %s (more than %.2f″ an hour)", mm, tb.Format(time.RFC3339), maxRainRate)
+			}
 			continue
 		}
 		mm := math.Max(0, b.Mn-a.Mn)
 		switch {
+		case !plausible(mm, gap): // a faulty report: leave the stretch unknown
+			log.Printf("cwop: ignoring %.1f mm in %v at %s (more than %.2f″ an hour)", mm, gap, tb.Format(time.RFC3339), maxRainRate)
 		case gap <= aprsMaxGap:
 			out = append(out, reading{tb, mm / 25.4})
 		case gap <= 24*time.Hour:
@@ -206,6 +220,29 @@ func rainFromSamples(samples []aprsSample) []reading {
 		out[i].V = math.Round(out[i].V*1e6) / 1e6
 	}
 	return out
+}
+
+// dropRainSpikes removes reports whose "since midnight" total jumps up and then falls straight back
+// to about where it was: a bad reading, corrected in the next report. (A real reset falls to well
+// below where the total was before.) Otherwise the jump would count as rain and the fall as a
+// midnight reset, counting the rain after it twice.
+func dropRainSpikes(samples []aprsSample) []aprsSample {
+	for {
+		dropped := false
+		for i := 1; i+1 < len(samples); i++ {
+			prev, cur, next := samples[i-1].Mn, samples[i].Mn, samples[i+1].Mn
+			if cur > prev+0.05 && next < cur-0.05 && next >= prev-0.05 {
+				log.Printf("cwop: dropping a spike to %.1f mm since midnight at %s (%.1f before, %.1f after)",
+					cur, time.Unix(samples[i].T, 0).UTC().Format(time.RFC3339), prev, next)
+				samples = append(samples[:i:i], samples[i+1:]...)
+				dropped = true
+				break
+			}
+		}
+		if !dropped {
+			return samples
+		}
+	}
 }
 
 // redactKey keeps the API key out of errors (they quote the request URL) and so out of the logs.
